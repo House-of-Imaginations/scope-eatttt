@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"rtk grep -n \\\"^## Phase\\\\|FRONTEND UNBLOCKED\\\\|^## Self-Review\\\\|^**Owner:**\\\\|prerequisite\\\\|Prerequisite\\\" docs/superpowers/plans/2026-06-20-scope-eatttt-backend-p1.md\",\"description\":\"Lo...",
+  "error": "Exit code 2\ngrep: repetition-operator operand invalid\n0 matches for '^## Phase\\|FRONTEND UNBLOCKED\\|^## Self-Review\\|^**Owner:**\\|prerequisite\\|Prerequisite'",
+  "timestamp": "2026-06-20T06:40:11.695Z",
+  "retry_count": 1
+}

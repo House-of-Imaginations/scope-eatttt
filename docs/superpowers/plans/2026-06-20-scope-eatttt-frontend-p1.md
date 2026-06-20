@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Prerequisite:** backend Tasks 0.1–0.6 done (monorepo + `@scope/contract` published in workspace). Frontend imports `@scope/contract` for all types/inputs — never redefines them.
+- **Prerequisite:** Setup plan Tasks S1–S6 done (`docs/superpowers/plans/2026-06-20-scope-eatttt-setup.md`) — monorepo + `@scope/contract` published in workspace. Frontend imports `@scope/contract` for all types/inputs — never redefines them.
 - **Parallel-work seam:** until backend Phase 2 lands, target a **mock oRPC handler** (`apps/web/src/lib/client/mockHandler.ts`) and a **mock SSE source**. Swapping to real = change one base-URL/flag, no component edits.
 - TypeScript strict. Svelte 5 **runes** (`$state`, `$derived`, `$effect`) — no legacy stores syntax for new code.
 - **Styling source of truth:** `DESIGN.md` (user to provide). All colors/spacing/type come from `packages/tokens` → Tailwind theme in `src/styles/global.css` `@theme`. No ad-hoc hex in components.
@@ -400,7 +400,7 @@ git commit -m "test(web): real multi-client e2e — live promote + vote + winner
 
 - **Spec coverage (frontend):** tokens(F0.1), shell/tailwind(F0.2), typed client+mock(F0.3), SSE store+reducer(F0.4), UI primitives(F0.5), start(F1.1), join(F1.2), swipe deck(F1.3), session state machine all 4 statuses(F1.4), reconnect/replay UX(F1.5), real multi-client E2E(F1.6). Covers product flow §2 and realtime §6 client-side. Bill-split UI = P2, excluded.
 - **Placeholder scan:** token values are real defaults gated on `DESIGN.md` (explicitly flagged, not "TBD"); the Button CT color literal references the same value — reconcile both when DESIGN.md lands.
-- **Type consistency:** all inputs/types imported from `@scope/contract` (`AppEvent`, `SessionState`, `Candidate`, `Restaurant`, contract inputs). `reduce(state,event)` exhaustively handles every `AppEvent` variant defined in backend Task 0.6. Mock handler mirrors real promote rule (threshold 2) so behavior matches.
+- **Type consistency:** all inputs/types imported from `@scope/contract` (`AppEvent`, `SessionState`, `Candidate`, `Restaurant`, contract inputs). `reduce(state,event)` exhaustively handles every `AppEvent` variant defined in Setup S6. Mock handler mirrors real promote rule (threshold 2) so behavior matches.
 - **Parallel seam:** F0.3/F0.4 mock paths let F1.* proceed before backend Phase 2; F1.6 flips to real.
 
 ---
@@ -408,8 +408,8 @@ git commit -m "test(web): real multi-client e2e — live promote + vote + winner
 ## Cross-plan dependency
 
 ```
-Backend 0.1–0.6 (foundation + contract)  ──┬──►  Frontend F0.* (can start at 0.6)
-Backend 1.x–2.x (domain + server)         ──┴──►  Frontend F1.6 (real E2E needs backend Phase 2)
+Setup S1–S6 (foundation + contract)      ──┬──►  Frontend F0.* (can start at S6)
+Backend 1.x–2.x (domain + server)        ──┴──►  Frontend F1.6 (real E2E needs backend Phase 2)
 ```
 
-Frontend F0.1–F1.5 run in parallel with backend Phase 1–2 using mocks. Only F1.6 (real E2E) is hard-blocked on backend Phase 2.
+After Setup S6, Frontend F0.1–F1.5 run in parallel with backend Phase 1–2 using mocks. Only F1.6 (real E2E) is hard-blocked on backend Phase 2.
