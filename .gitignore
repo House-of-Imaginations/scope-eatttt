@@ -1,0 +1,19 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# build
+dist/
+.svelte-kit/
+.turbo/
+build/
+coverage/
+*.tsbuildinfo
+
+# os / editor
+.DS_Store
