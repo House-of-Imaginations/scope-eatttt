@@ -413,3 +413,28 @@ Backend 1.x–2.x (domain + server)        ──┴──►  Frontend F1.6 (re
 ```
 
 After Setup S6, Frontend F0.1–F1.5 run in parallel with backend Phase 1–2 using mocks. Only F1.6 (real E2E) is hard-blocked on backend Phase 2.
+
+---
+
+## Skill Routing (subagent-driven)
+
+When executing a task via subagent-driven-development, the dispatched subagent MUST load the matching skill(s) below before writing code. Skills live in **both** `.claude/skills/` (Claude) and `.agents/skills/` (Codex). Design tasks load the design lane; wiring tasks load the SvelteKit lane.
+
+**Design lane (load on any visual/styling task):** `impeccable`, `frontend-ui-engineering`, `taste-frontend`, `ui-ux-pro-max`, `minimalist-ui`, `high-end-visual-design`. Use these to avoid generic AI aesthetic and to match `DESIGN.md`.
+
+| Task | Load skill(s) |
+|---|---|
+| F0.1 tokens | design lane (`taste-frontend`, `impeccable`) — token taste |
+| F0.2 shell + tailwind wiring | `sveltekit-svelte5-tailwind`, `sveltekit-structure` |
+| F0.3 oRPC client + mock | `orpc-patterns` |
+| F0.4 SSE store + reducer | `sveltekit-data-flow` |
+| F0.5 UI primitives | design lane (all) — these set the visual bar |
+| F1.1 start screen | `sveltekit-svelte5-tailwind` + design lane |
+| F1.2 join screen | `sveltekit-svelte5-tailwind` + design lane |
+| F1.3 swipe card + deck | design lane (`impeccable`, `frontend-ui-engineering`) for motion/feel + `sveltekit-data-flow` |
+| F1.4 session state machine | `sveltekit-data-flow`, `sveltekit-structure` + design lane |
+| F1.5 reconnect UX | `sveltekit-data-flow` |
+| F1.6 real multi-client e2e | `playwright-testing` |
+
+Rule: every screen/component task loads the design lane before styling; wiring/logic tasks load the SvelteKit/oRPC skill. Never ship UI without the design lane loaded — it is the guard against generic output.
+

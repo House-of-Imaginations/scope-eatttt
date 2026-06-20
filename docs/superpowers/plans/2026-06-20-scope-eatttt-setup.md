@@ -672,3 +672,21 @@ git commit -m "feat(contract): zod schemas, orpc contract, sse event union, shar
 ## Execution Handoff
 
 Setup plan complete. Run this first (recommend Codex). Then backend Phase 1 and frontend F0 proceed in parallel.
+
+---
+
+## Skill Routing (subagent-driven)
+
+When executing a task via subagent-driven-development, the dispatched subagent MUST load the matching skill(s) below before writing code. Skills live in **both** `.claude/skills/` (Claude) and `.agents/skills/` (Codex) — load by name regardless of runtime.
+
+| Task | Load skill(s) |
+|---|---|
+| S1 monorepo scaffold | — (mechanical) |
+| S2 typed env | — |
+| S3 docker / pgbouncer | `postgres-best-practices` |
+| S4 db schema (auth+app+outbox) + clients | `drizzle-orm-patterns`, `postgres-best-practices` |
+| S5 outbox NOTIFY trigger + index | `drizzle-orm-patterns`, `postgres-best-practices` |
+| S6 contract (zod + oRPC + events) | `orpc-patterns` |
+
+Rule: a task with no skill listed is mechanical — proceed without one. Never skip a listed skill.
+

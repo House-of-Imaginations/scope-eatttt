@@ -586,3 +586,29 @@ git commit -m "test(web): backend e2e — swipe->promote->poll->vote->winner ove
 ## Execution Handoff
 
 Backend plan complete. Frontend plan is separate (next file). Execution options offered after both plans are written.
+
+---
+
+## Skill Routing (subagent-driven)
+
+When executing a task via subagent-driven-development, the dispatched subagent MUST load the matching skill(s) below before writing code. Skills live in **both** `.claude/skills/` (Claude) and `.agents/skills/` (Codex) — load by name. A task with no skill is mechanical.
+
+| Task | Load skill(s) |
+|---|---|
+| 1.1 ports + errors | — |
+| 1.2 fake adapters | — |
+| 1.3 session domain (same-tx outbox) | `drizzle-orm-patterns` |
+| 1.4 swipe domain (promote/radius) | — |
+| 1.5 poll domain (tally/winner) | — |
+| 1.6 real adapters (Places/Redis/BullMQ) | `bullmq-specialist` (queue), `postgres-best-practices` (cache keys) |
+| 2.1 drizzle SessionRepo same-tx | `drizzle-orm-patterns`, `postgres-best-practices` |
+| 2.2 Better Auth + AuthProvider + hook | `sveltekit-svelte5-tailwind`, `sveltekit-data-flow` |
+| 2.3 composition root | — |
+| 2.4 oRPC handlers + guards | `orpc-patterns`, `sveltekit-remote-functions` |
+| 2.5 outbox relay (LISTEN direct) | `postgres-best-practices` |
+| 2.6 SSE gateway + replay | `sveltekit-data-flow`, `sveltekit-structure` |
+| 2.7 worker jobs (places.fetch / poll.close) | `bullmq-specialist` |
+| 2.8 backend e2e | `playwright-testing` |
+
+Rule: load the listed skill(s) first; never skip. Backend constraints (hexagonal, outbox same-tx, `prepare:false`, direct-LISTEN) are enforced by the skill + Global Constraints together.
+
