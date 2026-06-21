@@ -12,6 +12,7 @@
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.20",
     "@orpc/client": "^1.14.6",
+    "@orpc/contract": "^1.14.4",
     "@orpc/server": "^1.14.6",
     "@scope/adapters": "workspace:*",
     "@scope/config": "workspace:*",

@@ -1,29 +1,23 @@
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import type { ContractRouterClient } from "@orpc/contract";
 import type { contract } from "@scope/contract";
-import type { NestedClient } from "@orpc/client";
 import { parsePublicEnv } from "@scope/config";
 import { makeMockApi } from "./mockHandler";
 
-// Derive the typed client shape from the contract definition.
-type RouterClient = {
-  [G in keyof typeof contract]: {
-    [P in keyof (typeof contract)[G]]: (typeof contract)[G][P] extends {
-      "~orpc": { input: infer I; output: infer O };
-    }
-      ? (input: I) => Promise<O>
-      : never;
-  };
-};
+// Fully-typed client inferred from the oRPC contract. Each leaf becomes
+// (input) => Promise<output> — do not hand-roll the mapped type (the contract's
+// internal shape uses inputSchema/outputSchema, so a manual mapper resolves to never).
+export type Api = ContractRouterClient<typeof contract>;
 
-// Use SvelteKit's PUBLIC_ env flag (via @scope/config) to switch between real and mock transport.
+// PUBLIC_ env flag (validated via @scope/config) switches real vs mock transport.
 const USE_MOCK = parsePublicEnv(import.meta.env).useMock;
 
-function buildRealClient(): RouterClient {
+function buildRealClient(): Api {
   const link = new RPCLink({ url: "/api/rpc" });
-  return createORPCClient<NestedClient<RouterClient>>(link) as RouterClient;
+  return createORPCClient(link);
 }
 
-export const api: RouterClient = USE_MOCK
-  ? (makeMockApi() as unknown as RouterClient)
+export const api: Api = USE_MOCK
+  ? (makeMockApi() as unknown as Api)
   : buildRealClient();
