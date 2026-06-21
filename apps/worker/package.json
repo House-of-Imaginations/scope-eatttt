@@ -1,0 +1,24 @@
+{
+  "name": "worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@scope/adapters": "workspace:*",
+    "@scope/config": "workspace:*",
+    "@scope/contract": "workspace:*",
+    "@scope/core": "workspace:*",
+    "@scope/db": "workspace:*",
+    "bullmq": "^5.79.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
