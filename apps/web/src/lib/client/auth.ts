@@ -7,6 +7,10 @@ const USE_MOCK = parsePublicEnv({ PUBLIC_USE_MOCK }).useMock;
 // Guard against concurrent bootstrap calls — share a single in-flight promise.
 let _inflight: Promise<void> | null = null;
 
+// ponytail: small bounded retry for transient fetch failures (cold-start blip).
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 300;
+
 /**
  * Ensure an anonymous Better Auth session exists for this browser context.
  *
@@ -16,6 +20,8 @@ let _inflight: Promise<void> | null = null;
  *
  * Idempotent: safe to call on every page load — skips the sign-in POST when a
  * session is already present. Concurrent calls share the same in-flight promise.
+ * Retries up to MAX_ATTEMPTS times on thrown fetch errors (e.g. "Failed to fetch"
+ * on cold start) before logging once and resolving — bootstrap must never reject.
  *
  * No-op when PUBLIC_USE_MOCK=1 (mock transport needs no auth).
  */
@@ -26,27 +32,40 @@ export async function ensureAnonSession(): Promise<void> {
 
   _inflight = (async () => {
     try {
-      // Check for an existing session first — avoids creating a new anon user on
-      // every hard reload when the cookie is already set.
-      const check = await fetch("/api/auth/get-session", {
-        credentials: "include",
-      });
-      if (check.ok) {
-        const data = await check.json().catch(() => null);
-        if (data?.session) return; // already signed in
-      }
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        try {
+          // Check for an existing session first — avoids creating a new anon user on
+          // every hard reload when the cookie is already set.
+          const check = await fetch("/api/auth/get-session", {
+            credentials: "include",
+          });
+          if (check.ok) {
+            const data = await check.json().catch(() => null);
+            if (data?.session) return; // already signed in
+          }
 
-      // No session — sign in anonymously.
-      const resp = await fetch("/api/auth/sign-in/anonymous", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-        credentials: "include",
-      });
-      if (!resp.ok) {
-        const body = await resp.text().catch(() => "");
-        console.error(`[auth] anonymous sign-in failed: HTTP ${resp.status} — ${body}`);
+          // No session — sign in anonymously.
+          const resp = await fetch("/api/auth/sign-in/anonymous", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+            credentials: "include",
+          });
+          if (!resp.ok) {
+            const body = await resp.text().catch(() => "");
+            console.error(`[auth] anonymous sign-in failed: HTTP ${resp.status} — ${body}`);
+          }
+          return; // success — exit retry loop
+        } catch (err) {
+          lastErr = err;
+          if (attempt < MAX_ATTEMPTS - 1) {
+            await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+          }
+        }
       }
+      // All retries exhausted — log once, resolve quietly so layout bootstrap never crashes.
+      console.error("[auth] ensureAnonSession failed after retries:", lastErr);
     } finally {
       // Clear the in-flight reference so subsequent calls (e.g. after a sign-out)
       // can attempt a fresh bootstrap.
