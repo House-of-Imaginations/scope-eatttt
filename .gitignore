@@ -2,6 +2,11 @@
 node_modules/
 .pnpm-store/
 
+# Playwright outputs
+test-results/
+playwright-report/
+**/playwright/.cache/
+
 # env / secrets
 .env
 .env.*
