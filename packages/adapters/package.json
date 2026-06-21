@@ -1,0 +1,29 @@
+{
+  "name": "@scope/adapters",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@scope/contract": "workspace:*",
+    "@scope/core": "workspace:*",
+    "@scope/db": "workspace:*",
+    "bullmq": "^5.79.0",
+    "drizzle-orm": "^0.45.2",
+    "ioredis": "^5.11.1"
+  },
+  "devDependencies": {
+    "@scope/config": "workspace:*",
+    "@testcontainers/postgresql": "^12.0.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
