@@ -74,5 +74,7 @@ function buildPlaces(env: Env, cache: RedisCache): PlacesProvider {
 }
 
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+  console.log("Starting worker from file:", process.argv[1]);
   createScopeWorker();
+  console.log("Worker started");
 }
