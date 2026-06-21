@@ -150,6 +150,11 @@
 </script>
 
 <main class="page">
+  {#if store && !store.connected}
+    <div class="reconnect-banner" role="status" aria-live="polite" data-testid="reconnect-banner">
+      Reconnecting…
+    </div>
+  {/if}
   {#if !session}
     <p class="loading">Loading lunch…</p>
   {:else if status === "lobby"}
@@ -487,5 +492,24 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+  }
+
+  /* DESIGN.md: electric-blue strip, thick stroke, flat block shadow — comic notice. */
+  .reconnect-banner {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 14px;
+    color: #ffffff;
+    background-color: var(--color-electric-blue);
+    border: 3px solid var(--color-stroke);
+    border-radius: var(--radius-lg);
+    box-shadow: 4px 4px 0 var(--color-stroke);
+    padding: 10px 20px;
+    white-space: nowrap;
   }
 </style>

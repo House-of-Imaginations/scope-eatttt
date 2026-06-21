@@ -1,4 +1,5 @@
 import type { AppEvent, Candidate, Restaurant, SessionState } from "@scope/contract";
+import { api } from "./orpc";
 import { createSse, type SseConnection } from "./sse";
 
 /** The restaurant payload carried by a restaurant.promoted event. */
@@ -138,12 +139,54 @@ export interface SessionStore {
  * connection on connect(), reduces each incoming event into new state, and
  * dedupes by event id while tracking Last-Event-ID for replay on reconnect.
  */
+// ponytail: two fixed backoff steps, no jitter lib — YAGNI.
+const BACKOFF_MS = [1000, 3000] as const;
+
 export function createSessionStore(sessionId: string, joinCode: string): SessionStore {
   let state = $state<SessionState>(initialState(sessionId, joinCode));
   let connected = $state(false);
   let lastEventId = $state<string | null>(null);
   const seenIds = new Set<string>();
   let connection: SseConnection | null = null;
+  // ponytail: tracks attempt index into BACKOFF_MS; caps at last entry.
+  let retryAttempt = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
+
+  function openConnection() {
+    connection = createSse(sessionId, {
+      onOpen: () => {
+        connected = true;
+        retryAttempt = 0;
+        // On reconnect (not first open): replay events since last seen id.
+        if (lastEventId !== null) {
+          void api.session
+            .eventsSince({ sessionId, afterEventId: lastEventId })
+            .then((events) => {
+              for (const ev of events) {
+                state = applyEvent(state, ev, seenIds);
+              }
+            });
+        }
+      },
+      onError: () => {
+        connected = false;
+        connection = null;
+        if (stopped) return;
+        // ponytail: simple fixed-step backoff, cap at last entry.
+        const delay = BACKOFF_MS[Math.min(retryAttempt, BACKOFF_MS.length - 1)]!;
+        retryAttempt += 1;
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (!stopped) openConnection();
+        }, delay);
+      },
+      onEvent: (event) => {
+        state = applyEvent(state, event, seenIds);
+        lastEventId = event.id;
+      },
+    });
+  }
 
   return {
     get state() {
@@ -156,21 +199,16 @@ export function createSessionStore(sessionId: string, joinCode: string): Session
       return lastEventId;
     },
     connect() {
-      if (connection) return;
-      connection = createSse(sessionId, {
-        onOpen: () => {
-          connected = true;
-        },
-        onError: () => {
-          connected = false;
-        },
-        onEvent: (event) => {
-          state = applyEvent(state, event, seenIds);
-          lastEventId = event.id;
-        },
-      });
+      if (connection || retryTimer) return;
+      stopped = false;
+      openConnection();
     },
     disconnect() {
+      stopped = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
       connection?.close();
       connection = null;
       connected = false;
