@@ -2,6 +2,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { contract } from "@scope/contract";
 import type { NestedClient } from "@orpc/client";
+import { parsePublicEnv } from "@scope/config";
 import { makeMockApi } from "./mockHandler";
 
 // Derive the typed client shape from the contract definition.
@@ -15,8 +16,8 @@ type RouterClient = {
   };
 };
 
-// Use SvelteKit's PUBLIC_ env flag to switch between real and mock transport.
-const USE_MOCK = import.meta.env["PUBLIC_USE_MOCK"] === "1";
+// Use SvelteKit's PUBLIC_ env flag (via @scope/config) to switch between real and mock transport.
+const USE_MOCK = parsePublicEnv(import.meta.env).useMock;
 
 function buildRealClient(): RouterClient {
   const link = new RPCLink({ url: "/api/rpc" });

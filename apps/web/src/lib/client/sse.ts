@@ -1,4 +1,5 @@
 import type { AppEvent } from "@scope/contract";
+import { parsePublicEnv } from "@scope/config";
 
 export interface SseHandlers {
   onOpen?: () => void;
@@ -14,7 +15,7 @@ export interface SseConnection {
   emit(event: AppEvent): void;
 }
 
-const USE_MOCK = import.meta.env["PUBLIC_USE_MOCK"] === "1";
+const USE_MOCK = parsePublicEnv(import.meta.env).useMock;
 
 /** Real EventSource-backed connection to the session SSE stream. */
 function createRealSse(sessionId: string, handlers: SseHandlers): SseConnection {
@@ -42,9 +43,9 @@ function createRealSse(sessionId: string, handlers: SseHandlers): SseConnection 
 }
 
 /**
- * Mock connection used when PUBLIC_USE_MOCK === "1". Exposes `emit()` so tests
- * and screens can push synthetic AppEvents through the same handler pipeline
- * without a real EventSource.
+ * Mock connection used when parsePublicEnv(import.meta.env).useMock is true.
+ * Exposes `emit()` so tests and screens can push synthetic AppEvents through
+ * the same handler pipeline without a real EventSource.
  */
 function createMockSse(handlers: SseHandlers): SseConnection {
   let lastEventId: string | null = null;
