@@ -1,0 +1,23 @@
+@theme {
+  --color-canvas: #FCFBF7;
+  --color-surface-soft: #F4F2EA;
+  --color-surface-card: #FFFFFF;
+  --color-stroke: #1C1917;
+  --color-ink: #1C1917;
+  --color-ink-muted: #57534E;
+  --color-electric-blue: #1D4ED8;
+  --color-banana-yellow: #FACC15;
+  --color-bubblegum-pink: #FBCFE8;
+  --color-mint-green: #10B981;
+  --color-primary: #FACC15;
+  --color-accept: #10B981;
+  --color-reject: #EF4444;
+  --color-accent: #1D4ED8;
+  --radius-sm: 6px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+  --shadow-block: 4px 4px 0 #1C1917;
+  --font-display: Fredoka, "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
