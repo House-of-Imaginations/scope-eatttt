@@ -28,6 +28,7 @@ function baseSession(overrides: Partial<SessionState> = {}): SessionState {
     joinCode: "ABC123",
     status: "lobby",
     hostUserId: "host-user",
+    viewerIsHost: true,
     lat: -37.8136,
     lng: 144.9631,
     radiusM: 500,

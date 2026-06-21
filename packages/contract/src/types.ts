@@ -36,6 +36,7 @@ export interface SessionState {
   joinCode: string;
   status: SessionStatus;
   hostUserId: string;
+  viewerIsHost: boolean;
   lat: number;
   lng: number;
   radiusM: number;

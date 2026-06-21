@@ -25,6 +25,7 @@ export const SessionStateSchema = z.object({
   joinCode: z.string().min(4).max(12),
   status: SessionStatusSchema,
   hostUserId: z.string().min(1),
+  viewerIsHost: z.boolean(),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
   radiusM: z.number().int().positive(),

@@ -37,6 +37,9 @@ const BaseEvent = z.object({
 
 export const AppEventSchema = z.discriminatedUnion("type", [
   BaseEvent.extend({
+    type: z.literal("session.started"),
+  }),
+  BaseEvent.extend({
     type: z.literal("member.joined"),
     member: MemberSchema,
   }),

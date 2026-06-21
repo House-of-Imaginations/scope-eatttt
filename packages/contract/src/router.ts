@@ -10,6 +10,7 @@ export const contract = {
   session: {
     create: oc.input(CreateSessionInput).output(z.object({ sessionId: z.string().uuid(), joinCode: z.string() })),
     join: oc.input(JoinSessionInput).output(z.object({ sessionId: z.string().uuid(), memberId: z.string().uuid() })),
+    startSwiping: oc.input(SessionIdInput).output(z.object({ status: z.literal("swiping") })),
     state: oc.input(SessionIdInput).output(SessionStateSchema.nullable()),
     eventsSince: oc.input(SessionIdInput.extend({ afterEventId: z.string().uuid().optional() })).output(z.array(AppEventSchema)),
   },
