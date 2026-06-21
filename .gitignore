@@ -20,3 +20,7 @@ coverage/
 
 # omc runtime state
 .omc/
+.claude/
+.codex/
+.agents/
+.pi/
