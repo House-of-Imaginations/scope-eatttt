@@ -47,7 +47,7 @@ describe("oRPC handlers", () => {
           cuisines: ["thai"],
           limit: 5,
         },
-        opts: { jobId: `places-fetch:${sessionId}:host-user:500` },
+        opts: { jobId: `places-fetch-${sessionId}-host-user-500` },
       },
       {
         name: "places.fetch",
@@ -60,7 +60,7 @@ describe("oRPC handlers", () => {
           cuisines: ["thai"],
           limit: 5,
         },
-        opts: { jobId: `places-fetch:${sessionId}:guest-user:500` },
+        opts: { jobId: `places-fetch-${sessionId}-guest-user-500` },
       },
     ]);
   });
@@ -107,7 +107,7 @@ describe("oRPC handlers", () => {
           cuisines: ["thai"],
           limit: 5,
         },
-        opts: { jobId: `places-fetch:${sessionId}:guest-user:1000` },
+        opts: { jobId: `places-fetch-${sessionId}-guest-user-1000` },
       },
     ]);
   });
@@ -131,7 +131,7 @@ describe("oRPC handlers", () => {
     expect(queue.enqueued[0]).toMatchObject({
       name: "places.fetch",
       data: { sessionId, userId: "guest-user", lat: -37.8136, lng: 144.9631, radiusM: 1000, cuisines: ["thai"], limit: 5 },
-      opts: { jobId: `places-fetch:${sessionId}:guest-user:1000` },
+      opts: { jobId: `places-fetch-${sessionId}-guest-user-1000` },
     });
   });
 
@@ -148,6 +148,7 @@ describe("oRPC handlers", () => {
       id: sessionId,
       joinCode: "JOIN01",
       hostUserId: "host-user",
+      viewerIsHost: true,
       members: [{ userId: "host-user", displayName: "Ada" }],
       candidates: [{ restaurant }],
     });
@@ -176,6 +177,31 @@ describe("oRPC handlers", () => {
 
     await expect(client.session.state({ sessionId })).rejects.toMatchObject({ code: "NOT_MEMBER", status: 403 });
     await expect(client.session.eventsSince({ sessionId })).rejects.toMatchObject({ code: "NOT_MEMBER", status: 403 });
+  });
+
+  it("starts swiping for the host and exposes viewer host identity", async () => {
+    const repo = new MemorySessionRepo();
+    repo.sessions.set(sessionId, sessionSummary({ status: "lobby", hostUserId: "host-user" }));
+    repo.members.push(memberInput({ id: hostMemberId, userId: "host-user", displayName: "Ada", isHost: true }));
+    repo.members.push(memberInput({ id: guestMemberId, userId: "guest-user", displayName: "Grace", isHost: false }));
+    const router = createORPCRouter({ container: testContainer(repo), streak: new MemoryStreak() });
+    const hostClient = createRouterClient(router, { context: context(hostUser) });
+    const guestClient = createRouterClient(router, { context: context(guestUser) });
+
+    await expect(hostClient.session.startSwiping({ sessionId })).resolves.toEqual({ status: "swiping" });
+    await expect(guestClient.session.startSwiping({ sessionId })).rejects.toMatchObject({ code: "NOT_HOST", status: 403 });
+    await expect(guestClient.session.state({ sessionId })).resolves.toMatchObject({
+      status: "swiping",
+      viewerIsHost: false,
+    });
+    expect(repo.outbox).toEqual([
+      expect.objectContaining({
+        aggregate: "session",
+        aggregateId: sessionId,
+        type: "session.started",
+        payload: {},
+      }),
+    ]);
   });
 
   it("returns outbox replay events through eventsSince", async () => {
@@ -346,6 +372,17 @@ class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
 
   async listMembers(_tx: MemorySessionRepo, sessionId: string): Promise<AddMemberRecord[]> {
     return this.members.filter((member) => member.sessionId === sessionId);
+  }
+
+  async isHost(_tx: MemorySessionRepo, sessionId: string, userId: string): Promise<boolean> {
+    return this.members.some((member) => member.sessionId === sessionId && member.userId === userId && member.isHost);
+  }
+
+  async startSwiping(_tx: MemorySessionRepo, sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session?.status === "lobby") {
+      session.status = "swiping";
+    }
   }
 
   async insertOutbox(_tx: MemorySessionRepo, event: OutboxWrite): Promise<string> {

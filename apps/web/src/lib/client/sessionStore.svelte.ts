@@ -36,6 +36,7 @@ export function initialState(id: string, joinCode: string): SessionState {
     joinCode,
     status: "lobby",
     hostUserId: "",
+    viewerIsHost: false,
     lat: 0,
     lng: 0,
     radiusM: 0,
@@ -51,6 +52,9 @@ export function initialState(id: string, joinCode: string): SessionState {
  */
 export function reduce(state: SessionState, event: AppEvent): SessionState {
   switch (event.type) {
+    case "session.started":
+      return { ...state, status: "swiping" };
+
     case "member.joined": {
       // Idempotent: a member is identified by userId, not the event/member id.
       if (state.members.some((m) => m.userId === event.member.userId)) return state;

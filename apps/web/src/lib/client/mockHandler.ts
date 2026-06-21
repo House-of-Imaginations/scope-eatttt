@@ -81,6 +81,7 @@ export interface MockApi {
   session: {
     create(input: CreateIn): Promise<{ sessionId: string; joinCode: string }>;
     join(input: JoinIn): Promise<{ sessionId: string; memberId: string }>;
+    startSwiping(input: SessionIdIn): Promise<{ status: "swiping" }>;
     state(input: SessionIdIn): Promise<SessionState | null>;
     eventsSince(input: SessionIdIn & { afterEventId?: string }): Promise<AppEvent[]>;
   };
@@ -212,6 +213,20 @@ export function makeMockApi(): MockApi {
         return { sessionId, memberId };
       },
 
+      async startSwiping(input) {
+        const row = getSession(input.sessionId);
+        if (row.status === "lobby") {
+          row.status = "swiping";
+          row.events.push({
+            id: nextId(),
+            sessionId: input.sessionId,
+            occurredAt: nowIso(),
+            type: "session.started",
+          });
+        }
+        return { status: "swiping" };
+      },
+
       async state(input) {
         const row = sessions.get(input.sessionId);
         if (!row) return null;
@@ -220,6 +235,7 @@ export function makeMockApi(): MockApi {
           joinCode: row.joinCode,
           status: row.status,
           hostUserId: row.hostUserId,
+          viewerIsHost: true,
           lat: row.lat,
           lng: row.lng,
           radiusM: row.radiusM,

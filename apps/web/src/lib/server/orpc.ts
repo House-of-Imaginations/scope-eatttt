@@ -10,6 +10,7 @@ import {
   decideSwipe,
   joinSessionCommand,
   startPoll,
+  startSwiping as startSwipingCommand,
 } from "@scope/core";
 import type { AppContainer } from "./container";
 import { getContainer } from "./container";
@@ -72,10 +73,14 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
         await enqueuePlacesFetch(container, session, user.id, session.radiusM ?? container.config.RADIUS_BASE_M);
         return result;
       }),
+      startSwiping: os.session.startSwiping.handler(async ({ input, context }) => {
+        const user = requireUser(context);
+        return mapDomainError(() => startSwipingCommand({ repo: container.repo }, input.sessionId, user.id));
+      }),
       state: os.session.state.handler(async ({ input, context }) => {
         const user = requireUser(context);
         await requireMember(container, input.sessionId, user.id);
-        return buildSessionState(container, input.sessionId);
+        return buildSessionState(container, input.sessionId, user.id);
       }),
       eventsSince: os.session.eventsSince.handler(async ({ input, context }) => {
         const user = requireUser(context);
@@ -210,7 +215,7 @@ async function requireRestaurant(container: AppContainer, restaurantId: string):
   return restaurant;
 }
 
-async function buildSessionState(container: AppContainer, sessionId: string): Promise<SessionState | null> {
+async function buildSessionState(container: AppContainer, sessionId: string, userId: string): Promise<SessionState | null> {
   return container.repo.withTx(async (tx) => {
     const session = await container.repo.getSession(tx, sessionId);
     if (!session) {
@@ -225,6 +230,7 @@ async function buildSessionState(container: AppContainer, sessionId: string): Pr
       joinCode: session.joinCode,
       status: session.status ?? "lobby",
       hostUserId: requireSessionString(session.hostUserId, "hostUserId"),
+      viewerIsHost: members.some((member) => member.userId === userId && member.isHost),
       lat: requireSessionNumber(session.lat, "lat"),
       lng: requireSessionNumber(session.lng, "lng"),
       radiusM: session.radiusM ?? container.config.RADIUS_BASE_M,
