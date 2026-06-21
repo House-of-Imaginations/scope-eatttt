@@ -12,6 +12,7 @@
     "test": "playwright test -c playwright-ct.config.ts"
   },
   "dependencies": {
+    "@scope/contract": "workspace:*",
     "@scope/tokens": "workspace:*"
   },
   "peerDependencies": {
