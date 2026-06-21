@@ -164,8 +164,32 @@ export function makeMockApi(): MockApi {
 
       async join(input) {
         const code = input.joinCode.toUpperCase();
-        const sessionId = codeIndex.get(code);
-        if (!sessionId) throw new Error(`Join code ${code} not found`);
+        // ponytail: create-on-join for unknown codes — a joiner is usually on a
+        // different device than the host, so the session won't exist in this
+        // page's in-memory mock. Synthesize a lobby session so /join/<code> works
+        // standalone (real backend looks the code up in Postgres).
+        let sessionId = codeIndex.get(code);
+        if (!sessionId) {
+          sessionId = nextId();
+          const hostUserId = "user-host";
+          sessions.set(sessionId, {
+            id: sessionId,
+            joinCode: code,
+            status: "lobby",
+            hostUserId,
+            lat: 0,
+            lng: 0,
+            radiusM: 500,
+            cuisines: [],
+            members: [{ id: nextId(), userId: hostUserId, displayName: "Host", isHost: true, joinedAt: nowIso() }],
+            candidates: [],
+            pollDeadlineAt: undefined,
+            winnerCandidateId: undefined,
+            events: [],
+          });
+          codeIndex.set(code, sessionId);
+          nextSwipeUser.set(sessionId, hostUserId);
+        }
         const row = getSession(sessionId);
         const memberId = nextId();
         const userId = `user-${memberId}`;
