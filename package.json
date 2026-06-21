@@ -1,0 +1,21 @@
+{
+  "name": "scope-eatttt",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "type": "module",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "check-types": "turbo check-types",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "db:migrate": "turbo db:migrate"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
