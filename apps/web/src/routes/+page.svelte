@@ -1,17 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { api } from "$lib/client/orpc";
-  import { PUBLIC_USE_MOCK } from "$env/static/public";
-  import { makeMockApi } from "$lib/client/mockHandler";
   import { Button } from "@scope/ui";
-
-  // Use the in-memory mock when PUBLIC_USE_MOCK=1 (avoids RPCLink URL
-  // construction issues with relative paths in browser E2E tests).
-  // ponytail: thin shim — delete when orpc.ts env detection is fixed.
-  const sessionApi =
-    PUBLIC_USE_MOCK === "1"
-      ? (makeMockApi() as unknown as typeof api)
-      : api;
 
   // ponytail: static cuisine list — fetch from API later if ever needed
   const CUISINES = [
@@ -89,7 +79,7 @@
 
     loading = true;
     try {
-      const result = await sessionApi.session.create({
+      const result = await api.session.create({
         lat: coords.lat,
         lng: coords.lng,
         cuisines: Array.from(selected),

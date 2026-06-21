@@ -1,3 +1,4 @@
+import { PUBLIC_USE_MOCK } from "$env/static/public";
 import type { AppEvent } from "@scope/contract";
 import { parsePublicEnv } from "@scope/config";
 
@@ -15,7 +16,8 @@ export interface SseConnection {
   emit(event: AppEvent): void;
 }
 
-const USE_MOCK = parsePublicEnv(import.meta.env).useMock;
+// Read via $env/static/public — PUBLIC_* is not on import.meta.env in the browser.
+const USE_MOCK = parsePublicEnv({ PUBLIC_USE_MOCK }).useMock;
 
 /** Real EventSource-backed connection to the session SSE stream. */
 function createRealSse(sessionId: string, handlers: SseHandlers): SseConnection {

@@ -2,6 +2,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import type { contract } from "@scope/contract";
+import { PUBLIC_USE_MOCK } from "$env/static/public";
 import { parsePublicEnv } from "@scope/config";
 import { makeMockApi } from "./mockHandler";
 
@@ -10,8 +11,9 @@ import { makeMockApi } from "./mockHandler";
 // internal shape uses inputSchema/outputSchema, so a manual mapper resolves to never).
 export type Api = ContractRouterClient<typeof contract>;
 
-// PUBLIC_ env flag (validated via @scope/config) switches real vs mock transport.
-const USE_MOCK = parsePublicEnv(import.meta.env).useMock;
+// PUBLIC_ flag (validated via @scope/config) switches real vs mock transport.
+// Read via $env/static/public — SvelteKit does NOT expose PUBLIC_* on import.meta.env in the browser.
+const USE_MOCK = parsePublicEnv({ PUBLIC_USE_MOCK }).useMock;
 
 function buildRealClient(): Api {
   const link = new RPCLink({ url: "/api/rpc" });

@@ -13,5 +13,10 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [tailwindcss(), sveltekit()],
+    test: {
+      // Vitest = unit tests only. Playwright E2E lives in tests/ — keep it out.
+      include: ["src/**/*.{test,spec}.ts"],
+      exclude: ["tests/**", "node_modules/**"],
+    },
   };
 });
