@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "svelte-kit sync && tsc --noEmit",
-    "check-types": "svelte-kit sync && tsc --noEmit",
-    "test": "vitest run",
-    "dev": "vite dev"
+    "build": "pnpm with-env svelte-kit sync && tsc --noEmit",
+    "check-types": "pnpm with-env svelte-kit sync && tsc --noEmit",
+    "test": "pnpm with-env vitest run",
+    "dev": "pnpm with-env vite dev",
+    "with-env": "dotenv -e ../../.env --"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.20",
@@ -17,13 +18,14 @@
     "@scope/adapters": "workspace:*",
     "@scope/config": "workspace:*",
     "@scope/contract": "workspace:^",
-    "@scope/ui": "workspace:*",
     "@scope/core": "workspace:^",
     "@scope/db": "workspace:*",
     "@scope/tokens": "workspace:*",
+    "@scope/ui": "workspace:*",
     "@sveltejs/adapter-node": "^5.5.4",
     "@sveltejs/kit": "^2.66.0",
     "better-auth": "^1.6.20",
+    "dotenv-cli": "^11.0.0",
     "svelte": "^5.56.3",
     "vite": "^8.0.16"
   },

@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check-types": "tsc --noEmit",
-    "test": "vitest run",
-    "dev": "tsx src/index.ts"
+    "check-types": "pnpm with-env tsc --noEmit",
+    "test": "pnpm with-env vitest run",
+    "dev": "pnpm with-env tsx src/index.ts",
+    "with-env": "dotenv -e ../../.env --"
   },
   "dependencies": {
     "@scope/adapters": "workspace:*",
@@ -14,7 +15,8 @@
     "@scope/contract": "workspace:*",
     "@scope/core": "workspace:*",
     "@scope/db": "workspace:*",
-    "bullmq": "^5.79.0"
+    "bullmq": "^5.79.0",
+    "dotenv-cli": "^11.0.0"
   },
   "devDependencies": {
     "tsx": "^4.22.4",
