@@ -1,5 +1,6 @@
 import type { CreateSessionInput, JoinSessionInput } from "@scope/contract";
 import type { AddMemberRecord, OutboxWrite, SessionRepo, TransactionContext } from "../ports/repo";
+import { NotHostError } from "../index";
 
 export interface SessionCommandIds {
   sessionId?: () => string;
@@ -22,6 +23,10 @@ export interface CreateSessionResult {
 export interface JoinSessionResult {
   sessionId: string;
   memberId: string;
+}
+
+export interface StartSwipingResult {
+  status: "swiping";
 }
 
 export async function createSession<Tx>(
@@ -90,6 +95,32 @@ export async function joinSession<Tx>(
   });
 }
 
+export async function startSwiping<Tx>(
+  deps: Pick<SessionCommandDeps<Tx>, "repo">,
+  sessionId: string,
+  hostUserId: string,
+): Promise<StartSwipingResult> {
+  await deps.repo.withTx(async (tx) => {
+    await assertHost(deps.repo, tx, sessionId, hostUserId);
+    const session = await deps.repo.getSession(tx, sessionId);
+
+    if (!session) {
+      throw new Error("Session not found");
+    }
+    if (session.status === "swiping") {
+      return;
+    }
+    if ((session.status ?? "lobby") !== "lobby") {
+      throw new Error("Session cannot start swiping from current status");
+    }
+
+    await deps.repo.startSwiping(tx, sessionId);
+    await deps.repo.insertOutbox(tx, sessionStartedEvent(sessionId));
+  });
+
+  return { status: "swiping" };
+}
+
 function memberJoinedEvent(sessionId: string, member: AddMemberRecord): OutboxWrite {
   return {
     aggregate: "session",
@@ -105,6 +136,21 @@ function memberJoinedEvent(sessionId: string, member: AddMemberRecord): OutboxWr
       },
     },
   };
+}
+
+function sessionStartedEvent(sessionId: string): OutboxWrite {
+  return {
+    aggregate: "session",
+    aggregateId: sessionId,
+    type: "session.started",
+    payload: {},
+  };
+}
+
+async function assertHost<Tx>(repo: SessionRepo<Tx>, tx: Tx, sessionId: string, userId: string): Promise<void> {
+  if (!(await repo.isHost(tx, sessionId, userId))) {
+    throw new NotHostError();
+  }
 }
 
 function normalizeJoinCode(joinCode: string): string {

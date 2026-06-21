@@ -291,6 +291,12 @@ export class DrizzleSessionRepo
       .where(eq(lunchSession.id, sessionId));
   }
 
+  async startSwiping(tx: TransactionExecutor, sessionId: string): Promise<void> {
+    await update(tx, lunchSession)
+      .set({ status: "swiping", updatedAt: new Date() })
+      .where(and(eq(lunchSession.id, sessionId), eq(lunchSession.status, "lobby")));
+  }
+
   async upsertVote(
     tx: TransactionExecutor,
     input: { sessionId: string; candidateId: string; userId: string; value: 1 | -1 },

@@ -125,6 +125,16 @@ describe("DrizzleSessionRepo", () => {
     expect(db.tx.operations).toHaveLength(1);
   });
 
+  it("starts swiping by updating a lobby session", async () => {
+    const db = makeFakeDb();
+    const repo = new DrizzleSessionRepo(db);
+
+    await repo.withTx((tx) => repo.startSwiping(tx, "s1"));
+
+    expect(operationLabels(db.tx)).toEqual(["update:lunch_session"]);
+    expect(db.tx.operations[0]?.set).toMatchObject({ status: "swiping" });
+  });
+
   it("maps session and member rows from reads", async () => {
     const db = makeFakeDb({
       lunch_session: [{

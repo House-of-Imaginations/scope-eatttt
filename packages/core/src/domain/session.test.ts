@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createSession, joinSession } from "./session";
+import { createSession, joinSession, startSwiping } from "./session";
 import type { OutboxWrite, SessionRepo, TransactionContext } from "../ports/repo";
 
 class FakeSessionRepo implements SessionRepo<TransactionContext> {
-  sessions = new Map<string, { id: string; joinCode: string }>();
-  members: unknown[] = [];
+  sessions = new Map<string, { id: string; joinCode: string; status?: "lobby" | "swiping"; hostUserId?: string }>();
+  members: Array<{ sessionId: string; userId: string; isHost: boolean }> = [];
   outbox: OutboxWrite[] = [];
   transactionWrites: string[] = [];
 
@@ -14,7 +14,7 @@ class FakeSessionRepo implements SessionRepo<TransactionContext> {
 
   async createSession(tx: TransactionContext, input: Parameters<SessionRepo<TransactionContext>["createSession"]>[1]) {
     this.transactionWrites.push(`createSession:${tx.txId}`);
-    this.sessions.set(input.id, { id: input.id, joinCode: input.joinCode });
+    this.sessions.set(input.id, { id: input.id, joinCode: input.joinCode, status: "lobby", hostUserId: input.hostUserId });
   }
 
   async addMember(tx: TransactionContext, input: Parameters<SessionRepo<TransactionContext>["addMember"]>[1]) {
@@ -26,12 +26,22 @@ class FakeSessionRepo implements SessionRepo<TransactionContext> {
     return [...this.sessions.values()].find((session) => session.joinCode === joinCode) ?? null;
   }
 
-  async getSession() {
-    return null;
+  async getSession(_tx: TransactionContext, sessionId: string) {
+    return this.sessions.get(sessionId) ?? null;
   }
 
   async listMembers() {
     return [];
+  }
+
+  async isHost(_tx: TransactionContext, sessionId: string, userId: string) {
+    return this.members.some((member) => member.sessionId === sessionId && member.userId === userId && member.isHost);
+  }
+
+  async startSwiping(tx: TransactionContext, sessionId: string) {
+    this.transactionWrites.push(`startSwiping:${tx.txId}`);
+    const session = this.sessions.get(sessionId);
+    if (session) session.status = "swiping";
   }
 
   async insertOutbox(tx: TransactionContext, event: OutboxWrite) {
@@ -96,5 +106,24 @@ describe("session commands", () => {
         },
       },
     });
+  });
+
+  it("lets the host move the session into swiping once and emits session.started", async () => {
+    const repo = new FakeSessionRepo();
+    repo.sessions.set("session-1", { id: "session-1", joinCode: "ABCD12", status: "lobby", hostUserId: "host-user" });
+    repo.members.push({ sessionId: "session-1", userId: "host-user", isHost: true });
+
+    await expect(startSwiping({ repo }, "session-1", "host-user")).resolves.toEqual({ status: "swiping" });
+    await expect(startSwiping({ repo }, "session-1", "host-user")).resolves.toEqual({ status: "swiping" });
+
+    expect(repo.transactionWrites).toEqual(["startSwiping:tx-1", "outbox:tx-1"]);
+    expect(repo.outbox).toEqual([
+      {
+        aggregate: "session",
+        aggregateId: "session-1",
+        type: "session.started",
+        payload: {},
+      },
+    ]);
   });
 });
