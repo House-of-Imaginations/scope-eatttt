@@ -11,12 +11,14 @@
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.20",
+    "@orpc/client": "^1.14.6",
     "@orpc/server": "^1.14.6",
     "@scope/adapters": "workspace:*",
     "@scope/config": "workspace:*",
     "@scope/contract": "workspace:^",
     "@scope/core": "workspace:^",
     "@scope/db": "workspace:*",
+    "@scope/tokens": "workspace:*",
     "@sveltejs/adapter-node": "^5.5.4",
     "@sveltejs/kit": "^2.66.0",
     "better-auth": "^1.6.20",
@@ -24,7 +26,10 @@
     "vite": "^8.0.16"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@tailwindcss/vite": "^4.1.11",
     "@testcontainers/postgresql": "^12.0.3",
+    "tailwindcss": "^4.1.11",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   }

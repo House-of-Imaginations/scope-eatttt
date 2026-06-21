@@ -1,0 +1,12 @@
+@import "tailwindcss";
+@import "@scope/tokens/src/theme.css";
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
