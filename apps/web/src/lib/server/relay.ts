@@ -77,7 +77,17 @@ async function dispatchById(store: RelayStore, bus: EventBus, eventId: string): 
 }
 
 async function dispatchRow(store: RelayStore, bus: EventBus, row: RelayOutboxRow): Promise<void> {
-  const event = outboxRowToEvent(row);
+  let event: ReturnType<typeof outboxRowToEvent>;
+  try {
+    event = outboxRowToEvent(row);
+  } catch (err) {
+    // ponytail: skip malformed rows (e.g. schema violations from stale data)
+    // rather than crashing the relay process. Mark dispatched so the row
+    // doesn't block future drain cycles.
+    console.error("[relay] skipping malformed outbox row", row.id, row.type, err);
+    await store.markDispatched(row.id);
+    return;
+  }
   await bus.publish(`session:${row.aggregateId}`, event);
   await store.markDispatched(row.id);
 }

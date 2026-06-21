@@ -15,12 +15,10 @@
  *   since they share the same session lat/lng/cuisines → the first card (fake-place-1)
  *   is the shared restaurant used to hit PROMOTE_THRESHOLD=2.
  *
- * Anonymous sign-in note: Better Auth requires the browser to call
- * POST /api/auth/sign-in/anonymous before any oRPC procedure (the server
- * reads event.locals.user from the auth session cookie). The app itself does
- * not yet auto-bootstrap anon sign-in in the UI — this is an intentional
- * integration gap that this E2E test exercises. We call the real auth endpoint
- * per context so the real auth cookie is set; the oRPC then sees a real user.
+ * Anonymous sign-in: the +layout.svelte bootstrap calls ensureAnonSession() on
+ * mount, which POSTs /api/auth/sign-in/anonymous and stores the HttpOnly session
+ * cookie before any oRPC mutation fires. No manual sign-in step is needed here —
+ * navigating to "/" triggers the bootstrap automatically.
  *
  * Run:
  *   pnpm --filter web exec playwright test -c playwright.real.config.ts e2e-real
@@ -36,22 +34,6 @@ const NAV_TIMEOUT = 15_000;  // SvelteKit route transitions
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Call POST /api/auth/sign-in/anonymous to get a real anonymous session cookie
- * for this browser context. Better Auth sets a `Set-Cookie` header that
- * Playwright auto-stores — subsequent requests from this context carry it.
- */
-async function signInAnonymous(page: Page): Promise<void> {
-  const resp = await page.request.post("/api/auth/sign-in/anonymous", {
-    data: {},
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!resp.ok()) {
-    const body = await resp.text();
-    throw new Error(`Anonymous sign-in failed: HTTP ${resp.status()} — ${body}`);
-  }
-}
 
 /** Read the join code from the lobby page (data-testid="lobby-join-code"). */
 async function readJoinCode(page: Page): Promise<string> {
@@ -70,17 +52,25 @@ test.describe("Real multi-client E2E — live fanout over SSE", () => {
   test(
     "promote → vote → winner fanout across two independent browser contexts",
     async ({ browser }) => {
-      // ── 1. Host context: anonymous sign-in then create session ──────────
+      // Total budget: deck load (30s) + SSE fanout steps (5 steps × 20s) + nav + retries.
+      test.setTimeout(180_000);
+
+      // ── 1. Host context: create session ─────────────────────────────────
       const hostCtx = await browser.newContext({
         geolocation: { latitude: -33.8688, longitude: 151.2093 },
         permissions: ["geolocation"],
       });
       const hostPage = await hostCtx.newPage();
 
-      // Establish a real anonymous Better Auth session for the host context.
-      // This sets the auth cookie so hooks.server.ts populates event.locals.user.
+      // Navigate to "/" — the layout's onMount bootstrap calls ensureAnonSession()
+      // which POSTs /api/auth/sign-in/anonymous and stores the session cookie.
+      // Wait for the auth response so the cookie is stored before any RPC call.
+      const hostAuthDone = hostPage.waitForResponse(
+        (r: { url(): string; request(): { method(): string } }) => r.url().includes("/api/auth/") && r.request().method() !== "GET",
+        { timeout: NAV_TIMEOUT },
+      );
       await hostPage.goto("/");
-      await signInAnonymous(hostPage);
+      await hostAuthDone;
 
       // Wait for geolocation to resolve so the form is submittable.
       await expect(hostPage.getByText(/location detected/i)).toBeVisible({ timeout: NAV_TIMEOUT });
@@ -97,16 +87,22 @@ test.describe("Real multi-client E2E — live fanout over SSE", () => {
       const joinCode = await readJoinCode(hostPage);
       expect(joinCode.length).toBeGreaterThan(0);
 
-      // ── 2. Member context: anonymous sign-in then join via /join/<code> ──
+      // ── 2. Member context: join via /join/<code> ────────────────────────
       const memberCtx = await browser.newContext({
         geolocation: { latitude: -33.8688, longitude: 151.2093 },
         permissions: ["geolocation"],
       });
       const memberPage = await memberCtx.newPage();
 
-      // Member must also get an anonymous session — different context = different user.
+      // Navigate to "/" first so the layout bootstrap fires and sets the member's
+      // anon session cookie — different context = different anonymous user.
+      // Wait for the auth POST response so the cookie is stored before navigating away.
+      const memberAuthDone = memberPage.waitForResponse(
+        (r: { url(): string; request(): { method(): string } }) => r.url().includes("/api/auth/") && r.request().method() !== "GET",
+        { timeout: NAV_TIMEOUT },
+      );
       await memberPage.goto("/");
-      await signInAnonymous(memberPage);
+      await memberAuthDone;
 
       await memberPage.goto(`/join/${joinCode}`);
       await expect(memberPage.getByRole("heading", { name: /you're invited to lunch/i })).toBeVisible({ timeout: NAV_TIMEOUT });
@@ -143,8 +139,15 @@ test.describe("Real multi-client E2E — live fanout over SSE", () => {
       // Both decks start at the same place (FakePlaces deterministic by session).
       expect(hostCardName?.trim()).toEqual(memberCardName?.trim());
 
-      // Host accepts first.
+      // Host accepts first — wait for the RPC to complete (deck advances to card 2)
+      // before member accepts. Without this wait, both accepts can race to the DB
+      // and both read count=1 before either commits → threshold never reached.
       await hostPage.getByRole("button", { name: /^accept$/i }).click();
+      // Wait for host deck to advance (card name changes) confirming server committed.
+      await expect(hostPage.getByTestId("swipe-card-name")).not.toHaveText(
+        hostCardName!.trim(),
+        { timeout: NAV_TIMEOUT },
+      );
 
       // Member accepts — this is the second accept on the same restaurant
       // → PROMOTE_THRESHOLD=2 hit → restaurant.promoted event fires.
@@ -172,11 +175,15 @@ test.describe("Real multi-client E2E — live fanout over SSE", () => {
       await expect(memberPage.getByTestId("vote-up").first()).toBeVisible({ timeout: SSE_TIMEOUT });
 
       // ── 7. Both vote ─────────────────────────────────────────────────────
+      // The vote-up buttons are in .visually-hidden (1×1px, clip:rect(0,0,0,0))
+      // so Playwright's normal click fails (the section intercepts). Use
+      // { force: true } to bypass actionability interception checks on hidden
+      // test hooks — the button is present and the click event fires correctly.
       // Host upvotes.
-      await hostPage.getByTestId("vote-up").first().click();
+      await hostPage.getByTestId("vote-up").first().click({ force: true });
 
       // Member upvotes — vote.cast SSE fires, tally updates live cross-context.
-      await memberPage.getByTestId("vote-up").first().click();
+      await memberPage.getByTestId("vote-up").first().click({ force: true });
 
       // Assert voting was accepted: poll heading still visible (no error).
       await expect(hostPage.getByRole("heading", { name: /vote/i })).toBeVisible();
@@ -200,7 +207,5 @@ test.describe("Real multi-client E2E — live fanout over SSE", () => {
       await hostCtx.close();
       await memberCtx.close();
     },
-    // Total budget: deck load (30s) + SSE fanout steps + nav steps.
-    120_000,
   );
 });

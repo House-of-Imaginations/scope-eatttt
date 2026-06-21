@@ -95,7 +95,24 @@
   let myVotes = $state<Record<string, 1 | -1>>({});
 
   async function refresh() {
-    session = await api.session.state({ sessionId });
+    // ponytail: retry loop — the session row may not be visible yet if the anon
+    // sign-in cookie just landed. Three attempts with a short back-off is enough
+    // to bridge the propagation gap without a library.
+    const MAX_ATTEMPTS = 3;
+    const RETRY_DELAY_MS = 600;
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        session = await api.session.state({ sessionId });
+        return;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < MAX_ATTEMPTS - 1) {
+          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        }
+      }
+    }
+    console.error("[session] refresh failed after retries:", lastErr);
   }
 
   onMount(() => {
@@ -109,6 +126,22 @@
       s.disconnect();
       if (toastTimer) clearTimeout(toastTimer);
     };
+  });
+
+  // ponytail: refresh the authoritative oRPC snapshot when SSE delivers events
+  // that affect the rendered UI (member joins, status changes, new candidates).
+  // We track store.state.members.length / status / candidates.length — these
+  // change only when the SSE reducer processes a meaningful event (not on
+  // deck.replenished or prompt.broaden). Reading `session` here would create a
+  // dependency loop (refresh writes session → effect re-runs), so we only
+  // subscribe to STORE properties and let refresh() be idempotent.
+  $effect(() => {
+    if (!store) return;
+    // Subscribe to meaningful store state dimensions. Svelte tracks these reads.
+    void store.state.members.length;
+    void store.state.status;
+    void store.state.candidates.length;
+    void refresh();
   });
 
   function flashPromoted(name: string) {
