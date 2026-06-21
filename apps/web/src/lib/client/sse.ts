@@ -1,0 +1,71 @@
+import type { AppEvent } from "@scope/contract";
+
+export interface SseHandlers {
+  onOpen?: () => void;
+  onError?: (error: Event) => void;
+  onEvent: (event: AppEvent) => void;
+}
+
+export interface SseConnection {
+  /** Last event id received, exposed for Last-Event-ID replay on reconnect. */
+  readonly lastEventId: string | null;
+  close(): void;
+  /** Mock-only: push a synthetic AppEvent. No-op for a real EventSource. */
+  emit(event: AppEvent): void;
+}
+
+const USE_MOCK = import.meta.env["PUBLIC_USE_MOCK"] === "1";
+
+/** Real EventSource-backed connection to the session SSE stream. */
+function createRealSse(sessionId: string, handlers: SseHandlers): SseConnection {
+  const source = new EventSource(`/api/sessions/${sessionId}/events`);
+  let lastEventId: string | null = null;
+
+  source.onopen = () => handlers.onOpen?.();
+  source.onerror = (error) => handlers.onError?.(error);
+  source.onmessage = (message: MessageEvent<string>) => {
+    if (message.lastEventId) lastEventId = message.lastEventId;
+    handlers.onEvent(JSON.parse(message.data) as AppEvent);
+  };
+
+  return {
+    get lastEventId() {
+      return lastEventId;
+    },
+    close() {
+      source.close();
+    },
+    emit() {
+      // No-op: real streams receive events from the server only.
+    },
+  };
+}
+
+/**
+ * Mock connection used when PUBLIC_USE_MOCK === "1". Exposes `emit()` so tests
+ * and screens can push synthetic AppEvents through the same handler pipeline
+ * without a real EventSource.
+ */
+function createMockSse(handlers: SseHandlers): SseConnection {
+  let lastEventId: string | null = null;
+  let open = true;
+  handlers.onOpen?.();
+
+  return {
+    get lastEventId() {
+      return lastEventId;
+    },
+    close() {
+      open = false;
+    },
+    emit(event: AppEvent) {
+      if (!open) return;
+      lastEventId = event.id;
+      handlers.onEvent(event);
+    },
+  };
+}
+
+export function createSse(sessionId: string, handlers: SseHandlers): SseConnection {
+  return USE_MOCK ? createMockSse(handlers) : createRealSse(sessionId, handlers);
+}
