@@ -13,13 +13,10 @@ export class BullQueue implements JobQueue {
   }
 
   async enqueue(name: string, data: unknown, opts?: { delayMs?: number; jobId?: string }): Promise<void> {
-    const bullOpts =
-      opts === undefined
-        ? undefined
-        : {
-            ...(opts.delayMs === undefined ? {} : { delay: opts.delayMs }),
-            ...(opts.jobId === undefined ? {} : { jobId: opts.jobId }),
-          };
+    const bullOpts = opts && {
+      ...(opts.delayMs === undefined ? {} : { delay: opts.delayMs }),
+      ...(opts.jobId === undefined ? {} : { jobId: opts.jobId }),
+    };
     await this.queue.add(name, data, bullOpts);
   }
 }
