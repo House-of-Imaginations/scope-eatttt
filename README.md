@@ -82,6 +82,28 @@ Create a local environment file:
 cp .env.example .env
 ```
 
+Fill the environment values before starting the app:
+
+| Variable | Required for | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | App queries | PgBouncer transaction-mode URL, usually `postgres://app:app@localhost:6432/app` locally |
+| `DATABASE_DIRECT_URL` | Migrations, relay `LISTEN` | Direct Postgres URL, usually `postgres://app:app@localhost:5432/app` locally |
+| `REDIS_URL` | Pub/Sub, cache, jobs | Local default is `redis://localhost:6379` |
+| `PLACES_PROVIDER` | Restaurant discovery | Use `fake` for offline dev; switch to a real provider when wiring Google Places |
+| `OCR_PROVIDER` | P2 receipt OCR | Use `fake` for P1/offline dev |
+| `GOOGLE_MAPS_API_KEY` | Google Places adapter | Required only when `PLACES_PROVIDER` uses Google |
+| `GOOGLE_CLIENT_ID` | Google sign-in | Required for Google OAuth |
+| `GOOGLE_CLIENT_SECRET` | Google sign-in | Required for Google OAuth |
+| `BETTER_AUTH_SECRET` | Auth sessions | Replace the dev value outside local experiments |
+| `BETTER_AUTH_URL` | Auth callbacks | Local default is `http://localhost:5173` |
+| `PROMOTE_THRESHOLD` | Swipe rules | Default `2` accepts |
+| `REJECT_STREAK` | Deck expansion | Default `5` rejects |
+| `RADIUS_BASE_M` | Places search | Default `500` |
+| `RADIUS_STEP_M` | Places search expansion | Default `500` |
+| `RADIUS_CAP_M` | Places search cap | Default `3000` |
+| `POLL_TIMER_MS` | Poll duration | Default `300000` |
+| `PLACES_CACHE_TTL_S` | Places cache | Default `1800` |
+
 Start local infrastructure:
 
 ```bash
