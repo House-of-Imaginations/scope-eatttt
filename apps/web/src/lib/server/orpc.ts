@@ -256,7 +256,7 @@ async function enqueuePlacesFetch(
       cuisines: session.cuisines ?? [],
       limit: 5,
     },
-    { jobId: `places-fetch:${session.id}:${userId}:${radiusM}` },
+    { jobId: `places-fetch-${session.id}-${userId}-${radiusM}` },
   );
 }
 
