@@ -59,7 +59,10 @@ export async function startPoll<Tx>(
     await deps.repo.startPoll(tx, sessionId, deadlineAt);
     await deps.repo.insertOutbox(tx, pollOpenedEvent(sessionId, deadlineAt));
   });
-  await deps.queue.enqueue("poll.close", { sessionId }, { delayMs: deps.timerMs, jobId: `poll-close:${sessionId}` });
+  // BullMQ rejects custom job IDs containing ':' (Job.validateOptions throws
+  // "Custom Id cannot contain :"). Use a hyphen — same constraint that bit
+  // places-fetch. Without this, the poll commits but enqueue throws → client 500.
+  await deps.queue.enqueue("poll.close", { sessionId }, { delayMs: deps.timerMs, jobId: `poll-close-${sessionId}` });
 
   return { deadlineAt };
 }
