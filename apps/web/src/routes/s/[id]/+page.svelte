@@ -62,25 +62,8 @@
   // Authoritative snapshot. Seeded on mount, refreshed after host actions.
   let session = $state<Snapshot | null>(null);
 
-  // ponytail: there is no `session.startSwiping` procedure. The host clicking
-  // "Start swiping" flips this local flag to advance the lobby into the swiping
-  // view; the server status only ever moves forward (promote/poll), so a local
-  // OR with the snapshot status is safe and never regresses the screen.
-  let startedSwiping = $state(false);
-
-  // ponytail: real auth identity is not wired into the mock UI. We treat THIS
-  // client as the host whenever the session has a host member — the mock is a
-  // single-driver session, so the host controls belong to whoever is viewing.
-  // The real backend (F1.6) will gate this on the authenticated user id.
-  const isHost = $derived(session?.members.some((m) => m.isHost) ?? false);
-
-  // Effective status: the snapshot status, bumped to "swiping" once the host
-  // has started (and only while the snapshot is still in lobby).
-  const status = $derived.by((): Snapshot["status"] => {
-    const s = session?.status ?? "lobby";
-    if (s === "lobby" && startedSwiping) return "swiping";
-    return s;
-  });
+  const isHost = $derived(session?.viewerIsHost ?? false);
+  const status = $derived(session?.status ?? "lobby");
 
   // The promoted candidate chosen as the winner, for the decided view.
   const winner = $derived(
@@ -90,6 +73,10 @@
   // Transient "promoted!" toast text, shown briefly after a promoting swipe.
   let promotedToast = $state<string | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Inline error message for poll actions (openPoll / vote / endPoll).
+  // ponytail: single string; null = hidden. Dismissed by the user or cleared on next successful action.
+  let actionError = $state<string | null>(null);
 
   // This client's vote per candidate, to highlight the chosen button.
   let myVotes = $state<Record<string, 1 | -1>>({});
@@ -153,7 +140,8 @@
   }
 
   async function startSwiping() {
-    startedSwiping = true;
+    await api.session.startSwiping({ sessionId });
+    await refresh();
     await deck?.load();
   }
 
@@ -166,19 +154,36 @@
   }
 
   async function openPoll() {
-    await api.poll.start({ sessionId });
-    await refresh();
+    try {
+      actionError = null;
+      await api.poll.start({ sessionId });
+      await refresh();
+    } catch (err) {
+      actionError = err instanceof Error ? err.message : "Failed to open poll.";
+    }
   }
 
   async function vote(candidateId: string, value: 1 | -1) {
-    await api.poll.vote({ sessionId, candidateId, value });
-    myVotes = { ...myVotes, [candidateId]: value };
-    await refresh();
+    try {
+      actionError = null;
+      // ponytail: apply optimistic state AFTER the RPC succeeds — if it throws,
+      // myVotes is never updated so the button stays in its prior state.
+      await api.poll.vote({ sessionId, candidateId, value });
+      myVotes = { ...myVotes, [candidateId]: value };
+      await refresh();
+    } catch (err) {
+      actionError = err instanceof Error ? err.message : "Vote failed.";
+    }
   }
 
   async function endPoll() {
-    await api.poll.close({ sessionId });
-    await refresh();
+    try {
+      actionError = null;
+      await api.poll.close({ sessionId });
+      await refresh();
+    } catch (err) {
+      actionError = err instanceof Error ? err.message : "Failed to end poll.";
+    }
   }
 </script>
 
@@ -186,6 +191,12 @@
   {#if store && !store.connected}
     <div class="reconnect-banner" role="status" aria-live="polite" data-testid="reconnect-banner">
       Reconnecting…
+    </div>
+  {/if}
+  {#if actionError}
+    <div class="action-error" role="alert" aria-live="assertive" data-testid="action-error">
+      {actionError}
+      <button class="action-error-dismiss" onclick={() => (actionError = null)} aria-label="Dismiss">✕</button>
     </div>
   {/if}
   {#if !session}
@@ -525,6 +536,43 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+  }
+
+  /* Red error strip — same comic flat-block-shadow idiom as reconnect-banner.
+     Uses --color-reject (red token) which is the established error-state colour. */
+  .action-error {
+    position: fixed;
+    top: 56px; /* below reconnect-banner when both visible */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 14px;
+    color: #ffffff; /* white on --color-reject red; matches reconnect-banner pattern */
+    background-color: var(--color-reject);
+    border: 3px solid var(--color-stroke);
+    border-radius: var(--radius-lg);
+    box-shadow: 4px 4px 0 var(--color-stroke);
+    padding: 10px 16px;
+    white-space: nowrap;
+    max-width: calc(100vw - 32px);
+  }
+
+  .action-error-dismiss {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 14px;
+    color: inherit;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
   }
 
   /* DESIGN.md: electric-blue strip, thick stroke, flat block shadow — comic notice. */
