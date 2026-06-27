@@ -27,14 +27,25 @@ describe("oRPC handlers", () => {
       streak: new MemoryStreak(),
     });
     const hostClient = createRouterClient(router, { context: context(hostUser) });
-    const guestClient = createRouterClient(router, { context: context(guestUser) });
+    const guestClient = createRouterClient(router, { context: context(accountGuestUser) });
 
-    const created = await hostClient.session.create({ lat: -37.8136, lng: 144.9631, cuisines: ["thai"], radiusM: 500 });
+    const created = await hostClient.session.create({
+      lat: -37.8136,
+      lng: 144.9631,
+      cuisines: ["thai"],
+      radiusM: 500,
+      title: "Friday lunch",
+      pollDurationSec: 180,
+      promoteThreshold: 3,
+    });
     const joined = await guestClient.session.join({ joinCode: created.joinCode, displayName: "Grace" });
 
     expect(created).toEqual({ sessionId, joinCode: "JOIN01", memberId: hostMemberId });
     expect(joined).toEqual({ sessionId, memberId: guestMemberId });
     expect(repo.members.map((member) => member.userId)).toEqual(["host-user", "guest-user"]);
+    expect(repo.sessions.get(sessionId)).toMatchObject({ title: "Friday lunch", pollDurationSec: 180, promoteThreshold: 3 });
+    expect(repo.members[0]).toMatchObject({ image: "https://example.test/ada.png" });
+    expect(repo.members[1]).toMatchObject({ image: "https://example.test/grace.png" });
     expect(queue.enqueued).toEqual([
       {
         name: "places.fetch",
@@ -63,6 +74,39 @@ describe("oRPC handlers", () => {
         opts: { jobId: `places-fetch-${sessionId}-${guestMemberId}-500` },
       },
     ]);
+  });
+
+  it("uses session-specific promote threshold and poll duration", async () => {
+    const repo = new MemorySessionRepo();
+    const queue = new InlineQueue();
+    const thirdMemberId = "00000000-0000-4000-8000-000000000103";
+    repo.sessions.set(sessionId, sessionSummary({ promoteThreshold: 3, pollDurationSec: 180 }));
+    repo.members.push(memberInput({ id: hostMemberId, userId: "host-user", isHost: true }));
+    repo.members.push(memberInput({ id: guestMemberId, userId: "guest-user", isHost: false }));
+    repo.members.push(memberInput({ id: thirdMemberId, userId: "third-user", isHost: false }));
+    repo.restaurants.set("place-1", restaurant);
+    const router = createORPCRouter({
+      container: testContainer(repo, [], { queue }),
+      now: () => "2026-06-20T01:02:03.000Z",
+      streak: new MemoryStreak(),
+    });
+
+    await expect(createRouterClient(router, { context: context(hostUser) }).swipe.decide({ sessionId, restaurantId: "place-1", decision: "accept" }))
+      .resolves.toEqual({ promoted: false });
+    await expect(createRouterClient(router, { context: context(guestUser) }).swipe.decide({ sessionId, restaurantId: "place-1", decision: "accept" }))
+      .resolves.toEqual({ promoted: false });
+    await expect(
+      createRouterClient(router, { context: context({ id: "third-user", displayName: "Lin", isAnonymous: true }) }).swipe.decide({
+        sessionId,
+        restaurantId: "place-1",
+        decision: "accept",
+      }),
+    ).resolves.toMatchObject({ promoted: true });
+
+    await expect(createRouterClient(router, { context: context(hostUser) }).poll.start({ sessionId })).resolves.toEqual({
+      deadlineAt: "2026-06-20T01:05:03.000Z",
+    });
+    expect(queue.enqueued.at(-1)).toMatchObject({ name: "poll.close", opts: { delayMs: 180000 } });
   });
 
   it("rejects swipe decisions from non-members", async () => {
@@ -273,10 +317,58 @@ describe("oRPC handlers", () => {
       },
     ]);
   });
+
+  it("returns dashboard history and session summary for members", async () => {
+    const repo = new MemorySessionRepo();
+    repo.sessions.set(sessionId, sessionSummary({ title: "Friday lunch", status: "decided", winnerCandidateId: "00000000-0000-4000-8000-000000000301" }));
+    repo.members.push(memberInput({ id: hostMemberId, userId: "host-user", displayName: "Ada", image: "https://example.test/ada.png", isHost: true }));
+    repo.restaurants.set("place-1", restaurant);
+    repo.candidates.push({ id: "00000000-0000-4000-8000-000000000301", sessionId, restaurantId: "place-1" });
+    const client = createRouterClient(createORPCRouter({ container: testContainer(repo), streak: new MemoryStreak() }), { context: context(hostUser) });
+
+    await expect(client.dashboard.history({})).resolves.toEqual([
+      expect.objectContaining({ id: sessionId, title: "Friday lunch", joinCode: "JOIN01", status: "decided", winnerName: "Noodle House" }),
+    ]);
+    await expect(client.dashboard.session({ sessionId })).resolves.toMatchObject({
+      id: sessionId,
+      title: "Friday lunch",
+      members: [{ image: "https://example.test/ada.png" }],
+      candidates: [{ restaurant }],
+      winnerName: "Noodle House",
+    });
+  });
+
+  it("rejects dashboard history for anonymous users", async () => {
+    const repo = new MemorySessionRepo();
+    repo.sessions.set(sessionId, sessionSummary({ title: "Friday lunch" }));
+    repo.members.push(memberInput({ id: guestMemberId, userId: "guest-user", displayName: "Grace", isHost: false }));
+    const client = createRouterClient(createORPCRouter({ container: testContainer(repo), streak: new MemoryStreak() }), { context: context(guestUser) });
+
+    await expect(client.dashboard.history({})).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("absorbs an anonymous guest into the current user", async () => {
+    const repo = new MemorySessionRepo();
+    repo.anonymousUsers.add("guest-user");
+    const client = createRouterClient(createORPCRouter({ container: testContainer(repo), streak: new MemoryStreak() }), { context: context(hostUser) });
+
+    await expect(client.auth.absorbGuest({ anonUserId: "guest-user" })).resolves.toEqual({ reassigned: true });
+    expect(repo.reassigned).toEqual([{ anonymousUserId: "guest-user", newUserId: "host-user" }]);
+  });
+
+  it("rejects absorbGuest for anonymous current users", async () => {
+    const repo = new MemorySessionRepo();
+    repo.anonymousUsers.add("guest-user");
+    const client = createRouterClient(createORPCRouter({ container: testContainer(repo), streak: new MemoryStreak() }), { context: context(guestUser) });
+
+    await expect(client.auth.absorbGuest({ anonUserId: "guest-user" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(repo.reassigned).toEqual([]);
+  });
 });
 
-const hostUser: AuthUser = { id: "host-user", displayName: "Ada", isAnonymous: false };
+const hostUser: AuthUser = { id: "host-user", displayName: "Ada", image: "https://example.test/ada.png", isAnonymous: false };
 const guestUser: AuthUser = { id: "guest-user", displayName: "Grace", isAnonymous: true };
+const accountGuestUser: AuthUser = { id: "guest-user", displayName: "Grace", image: "https://example.test/grace.png", isAnonymous: false };
 const restaurant: Restaurant = { id: "place-1", name: "Noodle House", address: "1 Main St", cuisineTags: ["thai"] };
 
 function context(user: AuthUser): ORPCContext {
@@ -308,7 +400,7 @@ function testContainer(
   };
 }
 
-function sessionSummary(overrides: Partial<SessionSummary> = {}): SessionSummary {
+function sessionSummary(overrides: Partial<StoredSessionSummary> = {}): StoredSessionSummary {
   return {
     id: sessionId,
     joinCode: "JOIN01",
@@ -318,6 +410,7 @@ function sessionSummary(overrides: Partial<SessionSummary> = {}): SessionSummary
     lng: 144.9631,
     radiusM: 500,
     cuisines: ["thai"],
+    createdAt: "2026-06-20T01:02:03.000Z",
     ...overrides,
   };
 }
@@ -366,13 +459,17 @@ function sequence(values: string[]): () => string {
   };
 }
 
+type StoredSessionSummary = SessionSummary & { hostUserId?: string; createdAt?: string };
+
 class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
-  readonly sessions = new Map<string, SessionSummary & { hostUserId?: string }>();
+  readonly sessions = new Map<string, StoredSessionSummary>();
   readonly members: AddMemberRecord[] = [];
   readonly outbox: OutboxWrite[] = [];
   readonly restaurants = new Map<string, Restaurant>();
   readonly swipes: Array<{ sessionId: string; userId: string; memberId: string; restaurantId: string; decision: Decision }> = [];
   readonly candidates: Array<{ id: string; sessionId: string; restaurantId: string }> = [];
+  readonly anonymousUsers = new Set<string>();
+  readonly reassigned: Array<{ anonymousUserId: string; newUserId: string }> = [];
 
   async withTx<T>(fn: (tx: MemorySessionRepo) => Promise<T>): Promise<T> {
     return fn(this);
@@ -380,17 +477,23 @@ class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
 
   async createSession(
     _tx: MemorySessionRepo,
-    input: { id: string; joinCode: string; hostUserId: string; lat: number; lng: number; radiusM: number; cuisines: string[] },
+    input: {
+      id: string;
+      joinCode: string;
+      title?: string;
+      hostUserId: string;
+      lat: number;
+      lng: number;
+      radiusM: number;
+      cuisines: string[];
+      pollDurationSec: number;
+      promoteThreshold: number;
+      createdAt: string;
+    },
   ): Promise<void> {
     this.sessions.set(input.id, {
-      id: input.id,
-      joinCode: input.joinCode,
+      ...input,
       status: "lobby",
-      lat: input.lat,
-      lng: input.lng,
-      radiusM: input.radiusM,
-      cuisines: input.cuisines,
-      hostUserId: input.hostUserId,
     });
   }
 
@@ -406,12 +509,53 @@ class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
     return [...this.sessions.values()].find((session) => session.joinCode === joinCode) ?? null;
   }
 
+  async listSessionsForUser(_tx: MemorySessionRepo, userId: string) {
+    const sessionIds = new Set(this.members.filter((member) => member.userId === userId).map((member) => member.sessionId));
+    return [...this.sessions.values()]
+      .filter((session) => sessionIds.has(session.id))
+      .map((session) => ({
+        id: session.id,
+        title: session.title ?? null,
+        joinCode: session.joinCode,
+        status: session.status ?? "lobby",
+        createdAt: session.createdAt ?? "2026-06-20T01:02:03.000Z",
+        winnerName: this.winnerName(session),
+      }));
+  }
+
+  async getSessionSummary(_tx: MemorySessionRepo, sessionId: string, userId: string) {
+    if (!this.members.some((member) => member.sessionId === sessionId && member.userId === userId)) {
+      return null;
+    }
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return null;
+    }
+    return {
+      id: session.id,
+      title: session.title ?? null,
+      joinCode: session.joinCode,
+      status: session.status ?? "lobby",
+      winnerName: this.winnerName(session),
+      candidates: await this.listCandidateResults(),
+      members: await this.listMembers(this, sessionId),
+    };
+  }
+
   async listMembers(_tx: MemorySessionRepo, sessionId: string): Promise<AddMemberRecord[]> {
     return this.members.filter((member) => member.sessionId === sessionId);
   }
 
   async isHost(_tx: MemorySessionRepo, sessionId: string, userId: string): Promise<boolean> {
     return this.members.some((member) => member.sessionId === sessionId && member.userId === userId && member.isHost);
+  }
+
+  async startPoll(_tx: MemorySessionRepo, sessionId: string, deadlineAt: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.status = "polling";
+      session.pollDeadlineAt = deadlineAt;
+    }
   }
 
   async startSwiping(_tx: MemorySessionRepo, sessionId: string): Promise<void> {
@@ -476,6 +620,19 @@ class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
       downvotes: 0,
       netScore: 0,
     }));
+  }
+
+  async isAnonymousUser(userId: string): Promise<boolean> {
+    return this.anonymousUsers.has(userId);
+  }
+
+  async reassignUserRows(anonymousUserId: string, newUserId: string): Promise<void> {
+    this.reassigned.push({ anonymousUserId, newUserId });
+  }
+
+  private winnerName(session: SessionSummary): string | null {
+    const winner = this.candidates.find((candidate) => candidate.id === session.winnerCandidateId);
+    return winner ? (this.restaurants.get(winner.restaurantId)?.name ?? null) : null;
   }
 }
 

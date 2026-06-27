@@ -4,11 +4,14 @@ import type { AddMemberRecord, AuthUser, SessionSummary, StreakStore } from "@sc
 import {
   NotHostError,
   NotMemberError,
+  absorbGuest,
   castVote,
   closePoll,
   createSessionCommand,
   decideSwipe,
+  getSessionSummary,
   joinSessionCommand,
+  listHistory,
   startPoll,
   startSwiping as startSwipingCommand,
 } from "@scope/core";
@@ -45,7 +48,7 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
     session: {
       create: os.session.create.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const result = await createSessionCommand({ repo: container.repo, ids, now }, input, user.id, user.displayName);
+        const result = await createSessionCommand({ repo: container.repo, ids, now }, input, user.id, user.displayName, user.image ?? undefined);
         await enqueuePlacesFetch(
           container,
           {
@@ -65,7 +68,7 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
       }),
       join: os.session.join.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const result = await joinSessionCommand({ repo: container.repo, ids, now }, input, user.id);
+        const result = await joinSessionCommand({ repo: container.repo, ids, now }, input, user.id, user.image ?? undefined);
         const session = await container.repo.withTx((tx) => container.repo.getSession(tx, result.sessionId));
         if (!session) {
           throw new ORPCError("NOT_FOUND", { message: "Session not found" });
@@ -107,7 +110,7 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
           {
             repo: container.repo,
             streak,
-            promoteThreshold: container.config.PROMOTE_THRESHOLD,
+            promoteThreshold: session.promoteThreshold ?? container.config.PROMOTE_THRESHOLD,
             radius: {
               rejectStreak: container.config.REJECT_STREAK,
               stepM: container.config.RADIUS_STEP_M,
@@ -156,12 +159,12 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
     poll: {
       start: os.poll.start.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const { member } = await requireSessionMember(container, input.sessionId, user.id, input.memberId);
+        const { session, member } = await requireSessionMember(container, input.sessionId, user.id, input.memberId);
         if (!member.isHost) {
           throw new ORPCError("NOT_HOST", { status: 403, message: "Only the host can perform this action" });
         }
         return mapDomainError(() =>
-          startPoll({ repo: container.repo, queue: container.queue, timerMs: input.timerMs, now }, input.sessionId, user.id),
+          startPoll({ repo: container.repo, queue: container.queue, timerMs: (session.pollDurationSec ?? input.timerMs / 1000) * 1000, now }, input.sessionId, user.id),
         );
       }),
       results: os.poll.results.handler(async ({ input, context }) => {
@@ -182,6 +185,28 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
           throw new ORPCError("NOT_HOST", { status: 403, message: "Only the host can perform this action" });
         }
         return mapDomainError(() => closePoll({ repo: container.repo }, input.sessionId, user.id));
+      }),
+    },
+    dashboard: {
+      history: os.dashboard.history.handler(async ({ context }) => {
+        const user = requireUser(context);
+        if (user.isAnonymous) {
+          throw new ORPCError("UNAUTHORIZED");
+        }
+        return listHistory({ repo: container.repo }, user.id);
+      }),
+      session: os.dashboard.session.handler(async ({ input, context }) => {
+        const user = requireUser(context);
+        return getSessionSummary({ repo: container.repo }, input.sessionId, user.id);
+      }),
+    },
+    auth: {
+      absorbGuest: os.auth.absorbGuest.handler(async ({ input, context }) => {
+        const user = requireUser(context);
+        if (user.isAnonymous) {
+          throw new ORPCError("UNAUTHORIZED");
+        }
+        return absorbGuest(container.repo, input, user.id);
       }),
     },
   });
@@ -305,6 +330,7 @@ function memberFromRecord(member: AddMemberRecord): Member {
     displayName: member.displayName,
     isHost: member.isHost,
     joinedAt: member.joinedAt,
+    ...(member.image === undefined ? {} : { image: member.image }),
   };
 }
 
