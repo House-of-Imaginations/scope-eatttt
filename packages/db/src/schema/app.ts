@@ -38,7 +38,7 @@ export const sessionMember = pgTable(
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    sessionUserUnique: uniqueIndex("session_member_session_user_idx").on(table.sessionId, table.userId),
+    sessionUserIdx: index("session_member_session_user_idx").on(table.sessionId, table.userId),
     sessionIdx: index("session_member_session_idx").on(table.sessionId),
   }),
 );
@@ -49,12 +49,13 @@ export const swipe = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     sessionId: uuid("session_id").notNull().references(() => lunchSession.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id").notNull().references(() => sessionMember.id, { onDelete: "cascade" }),
     restaurantId: text("restaurant_id").notNull(),
     decision: swipeDecision("decision").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    swipeUnique: uniqueIndex("swipe_session_user_restaurant_idx").on(table.sessionId, table.userId, table.restaurantId),
+    swipeUnique: uniqueIndex("swipe_session_member_restaurant_idx").on(table.sessionId, table.memberId, table.restaurantId),
     restaurantIdx: index("swipe_session_restaurant_idx").on(table.sessionId, table.restaurantId),
   }),
 );
@@ -98,11 +99,12 @@ export const vote = pgTable(
     sessionId: uuid("session_id").notNull().references(() => lunchSession.id, { onDelete: "cascade" }),
     candidateId: uuid("candidate_id").notNull().references(() => pollCandidate.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id").notNull().references(() => sessionMember.id, { onDelete: "cascade" }),
     value: integer("value").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    voteUnique: uniqueIndex("vote_session_candidate_user_idx").on(table.sessionId, table.candidateId, table.userId),
+    voteUnique: uniqueIndex("vote_session_candidate_member_idx").on(table.sessionId, table.candidateId, table.memberId),
     sessionCandidateIdx: index("vote_session_candidate_idx").on(table.sessionId, table.candidateId),
   }),
 );

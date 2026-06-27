@@ -150,8 +150,7 @@ export class DrizzleSessionRepo
         displayName: input.displayName,
         isHost: input.isHost,
         joinedAt: new Date(input.joinedAt),
-      })
-      .onConflictDoNothing({ target: [sessionMember.sessionId, sessionMember.userId] });
+      });
   }
 
   async getSession(tx: TransactionExecutor, sessionId: string): Promise<SessionSummary | null> {
@@ -209,12 +208,12 @@ export class DrizzleSessionRepo
     return row ? restaurantRecord(row) : null;
   }
 
-  async listDeckRestaurants(tx: TransactionExecutor, sessionId: string, userId: string, limit: number): Promise<Restaurant[]> {
+  async listDeckRestaurants(tx: TransactionExecutor, sessionId: string, memberId: string, limit: number): Promise<Restaurant[]> {
     const rows = await queryRows<RestaurantRow>(select(tx, restaurantColumns)
       .from(restaurantCache)
       .leftJoin(
         swipe,
-        and(eq(swipe.restaurantId, restaurantCache.id), eq(swipe.sessionId, sessionId), eq(swipe.userId, userId)),
+        and(eq(swipe.restaurantId, restaurantCache.id), eq(swipe.sessionId, sessionId), eq(swipe.memberId, memberId)),
       )
       .where(isNull(swipe.id))
       .orderBy(desc(restaurantCache.cachedAt))
@@ -224,17 +223,18 @@ export class DrizzleSessionRepo
 
   async recordSwipe(
     tx: TransactionExecutor,
-    input: { sessionId: string; userId: string; restaurantId: string; decision: "accept" | "reject"; swipedAt: string },
+    input: { sessionId: string; userId: string; memberId: string; restaurantId: string; decision: "accept" | "reject"; swipedAt: string },
   ): Promise<{ created: boolean }> {
     const rows = await queryRows<IdRow>(insert(tx, swipe)
       .values({
         sessionId: input.sessionId,
         userId: input.userId,
+        memberId: input.memberId,
         restaurantId: input.restaurantId,
         decision: input.decision,
         createdAt: new Date(input.swipedAt),
       })
-      .onConflictDoNothing({ target: [swipe.sessionId, swipe.userId, swipe.restaurantId] })
+      .onConflictDoNothing({ target: [swipe.sessionId, swipe.memberId, swipe.restaurantId] })
       .returning({ id: swipe.id }));
     return { created: rows.length > 0 };
   }
@@ -271,10 +271,10 @@ export class DrizzleSessionRepo
     return { candidateId: requireReturnedId(existing, "poll_candidate") };
   }
 
-  async updateMemberRadius(tx: TransactionExecutor, sessionId: string, userId: string, radiusM: number): Promise<void> {
+  async updateMemberRadius(tx: TransactionExecutor, sessionId: string, memberId: string, radiusM: number): Promise<void> {
     await update(tx, sessionMember)
       .set({ radiusM })
-      .where(and(eq(sessionMember.sessionId, sessionId), eq(sessionMember.userId, userId)));
+      .where(and(eq(sessionMember.sessionId, sessionId), eq(sessionMember.id, memberId)));
   }
 
   async isHost(tx: TransactionExecutor, sessionId: string, userId: string): Promise<boolean> {
@@ -299,12 +299,12 @@ export class DrizzleSessionRepo
 
   async upsertVote(
     tx: TransactionExecutor,
-    input: { sessionId: string; candidateId: string; userId: string; value: 1 | -1 },
+    input: { sessionId: string; candidateId: string; userId: string; memberId: string; value: 1 | -1 },
   ): Promise<void> {
     await insert(tx, vote)
       .values(input)
       .onConflictDoUpdate({
-        target: [vote.sessionId, vote.candidateId, vote.userId],
+        target: [vote.sessionId, vote.candidateId, vote.memberId],
         set: { value: input.value },
       });
   }

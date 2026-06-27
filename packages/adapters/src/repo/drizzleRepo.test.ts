@@ -233,6 +233,7 @@ describe("DrizzleSessionRepo", () => {
         repo.recordSwipe(tx, {
           sessionId: "s1",
           userId: "u1",
+          memberId: "m1",
           restaurantId: "r1",
           decision: "accept",
           swipedAt: testTimestamp,
@@ -325,7 +326,7 @@ describe("DrizzleSessionRepo", () => {
     await repo.withTx(async (tx) => {
       await expect(repo.isHost(tx, "s1", "u1")).resolves.toBe(true);
       await repo.startPoll(tx, "s1", pollDeadline);
-      await repo.upsertVote(tx, { sessionId: "s1", candidateId: "c1", userId: "u1", value: 1 });
+      await repo.upsertVote(tx, { sessionId: "s1", candidateId: "c1", userId: "u1", memberId: "m1", value: 1 });
       await expect(repo.candidateBelongsToSession(tx, "s1", "c1")).resolves.toBe(true);
       await expect(repo.tally(tx, "c1")).resolves.toEqual({ up: 2, down: 1, net: 1 });
       await expect(repo.listCandidatesWithTally(tx, "s1")).resolves.toEqual([
@@ -440,7 +441,7 @@ function outboxInput(overrides: Partial<OutboxWrite> = {}): OutboxWrite {
 async function applyMigrations(sqlClient: ReturnType<typeof createDatabaseClients>["pooledSql"]): Promise<void> {
   await sqlClient`set client_min_messages to warning`;
 
-  for (const file of ["0000_normal_gateway.sql", "0001_outbox_trigger.sql"]) {
+  for (const file of ["0000_normal_gateway.sql", "0001_outbox_trigger.sql", "0002_member_scoped_activity.sql"]) {
     const migration = readFileSync(resolve(import.meta.dirname, "../../../db/migrations", file), "utf8");
 
     for (const statement of migration.split("--> statement-breakpoint")) {
@@ -519,8 +520,9 @@ function makeFakeDrizzle(ctx: FakeContext): {
               operation.conflict = "nothing";
               return insertReturning(ctx, operation.table);
             },
-            onConflictDoUpdate() {
+            onConflictDoUpdate(options?: { set?: unknown }) {
               operation.conflict = "update";
+              operation.set = options?.set;
               return insertReturning(ctx, operation.table);
             },
             returning: () => rowsPromise(ctx, operation.table, generatedIdRows()),
