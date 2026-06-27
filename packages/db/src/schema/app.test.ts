@@ -29,6 +29,16 @@ describe("db schema", () => {
     expect(getTableName(outboxEvent)).toBe("outbox_event");
   });
 
+  it("stores session poll options with pinned defaults", () => {
+    const columns = getTableColumns(lunchSession);
+
+    expect(columns.title.name).toBe("title");
+    expect(columns.pollDurationSec.name).toBe("poll_duration_sec");
+    expect(columns.promoteThreshold.name).toBe("promote_threshold");
+    expect(columns.pollDurationSec.default).toBe(300);
+    expect(columns.promoteThreshold.default).toBe(2);
+  });
+
   it("captures pinned status and decision enum values", () => {
     expect(sessionStatus.enumValues).toEqual(["lobby", "swiping", "polling", "decided", "closed"]);
     expect(swipeDecision.enumValues).toEqual(["accept", "reject"]);

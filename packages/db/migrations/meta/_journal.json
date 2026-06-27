@@ -22,6 +22,13 @@
       "when": 1781940731223,
       "tag": "0002_member_scoped_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782568867162,
+      "tag": "0003_mute_slapstick",
+      "breakpoints": true
     }
   ]
 }
