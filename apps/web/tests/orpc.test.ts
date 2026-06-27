@@ -347,23 +347,6 @@ describe("oRPC handlers", () => {
     await expect(client.dashboard.history({})).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
-  it("absorbs an anonymous guest into the current user", async () => {
-    const repo = new MemorySessionRepo();
-    repo.anonymousUsers.add("guest-user");
-    const client = createRouterClient(createORPCRouter({ container: testContainer(repo), streak: new MemoryStreak() }), { context: context(hostUser) });
-
-    await expect(client.auth.absorbGuest({ anonUserId: "guest-user" })).resolves.toEqual({ reassigned: true });
-    expect(repo.reassigned).toEqual([{ anonymousUserId: "guest-user", newUserId: "host-user" }]);
-  });
-
-  it("rejects absorbGuest for anonymous current users", async () => {
-    const repo = new MemorySessionRepo();
-    repo.anonymousUsers.add("guest-user");
-    const client = createRouterClient(createORPCRouter({ container: testContainer(repo), streak: new MemoryStreak() }), { context: context(guestUser) });
-
-    await expect(client.auth.absorbGuest({ anonUserId: "guest-user" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    expect(repo.reassigned).toEqual([]);
-  });
 });
 
 const hostUser: AuthUser = { id: "host-user", displayName: "Ada", image: "https://example.test/ada.png", isAnonymous: false };
@@ -468,8 +451,6 @@ class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
   readonly restaurants = new Map<string, Restaurant>();
   readonly swipes: Array<{ sessionId: string; userId: string; memberId: string; restaurantId: string; decision: Decision }> = [];
   readonly candidates: Array<{ id: string; sessionId: string; restaurantId: string }> = [];
-  readonly anonymousUsers = new Set<string>();
-  readonly reassigned: Array<{ anonymousUserId: string; newUserId: string }> = [];
 
   async withTx<T>(fn: (tx: MemorySessionRepo) => Promise<T>): Promise<T> {
     return fn(this);
@@ -620,14 +601,6 @@ class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
       downvotes: 0,
       netScore: 0,
     }));
-  }
-
-  async isAnonymousUser(userId: string): Promise<boolean> {
-    return this.anonymousUsers.has(userId);
-  }
-
-  async reassignUserRows(anonymousUserId: string, newUserId: string): Promise<void> {
-    this.reassigned.push({ anonymousUserId, newUserId });
   }
 
   private winnerName(session: SessionSummary): string | null {

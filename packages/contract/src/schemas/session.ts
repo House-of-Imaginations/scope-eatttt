@@ -11,6 +11,8 @@ export const MemberScopedSessionInput = SessionIdInput.extend({
   memberId: z.string().uuid().optional(),
 });
 
+const CuisineInput = z.string().trim().min(1).max(40);
+
 export const SessionSummarySchema = z.object({
   id: z.string().uuid(),
   title: z.string().nullable().optional(),
@@ -47,8 +49,8 @@ export const SessionStateSchema = z.object({
 export const CreateSessionInput = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
-  cuisines: z.array(z.string().min(1)).default([]),
-  radiusM: z.number().int().positive().default(500),
+  cuisines: z.array(CuisineInput).max(5).default([]),
+  radiusM: z.number().int().positive().max(3000).default(500),
   title: z.string().trim().min(1).max(60).optional(),
   pollDurationSec: z.union([z.literal(60), z.literal(180), z.literal(300), z.literal(600)]).optional(),
   promoteThreshold: z.number().int().min(1).max(5).optional(),

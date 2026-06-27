@@ -1,7 +1,6 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 import { AppEventSchema, CandidateSchema, RestaurantSchema } from "./events";
-import { AbsorbGuestInput } from "./schemas/auth";
 import { DashboardHistory, DashboardSessionSummary } from "./schemas/dashboard";
 import { ClosePollInput, StartPollInput, VoteInput } from "./schemas/poll";
 import { CreateSessionInput, JoinSessionInput, MemberScopedSessionInput, SessionIdInput, SessionStateSchema } from "./schemas/session";
@@ -30,9 +29,6 @@ export const contract = {
   dashboard: {
     history: oc.input(z.object({})).output(DashboardHistory),
     session: oc.input(SessionIdInput).output(DashboardSessionSummary.nullable()),
-  },
-  auth: {
-    absorbGuest: oc.input(AbsorbGuestInput).output(z.object({ reassigned: z.boolean() })),
   },
 };
 

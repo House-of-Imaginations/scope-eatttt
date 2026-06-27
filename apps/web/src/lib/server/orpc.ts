@@ -4,7 +4,6 @@ import type { AddMemberRecord, AuthUser, SessionSummary, StreakStore } from "@sc
 import {
   NotHostError,
   NotMemberError,
-  absorbGuest,
   castVote,
   closePoll,
   createSessionCommand,
@@ -198,15 +197,6 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
       session: os.dashboard.session.handler(async ({ input, context }) => {
         const user = requireUser(context);
         return getSessionSummary({ repo: container.repo }, input.sessionId, user.id);
-      }),
-    },
-    auth: {
-      absorbGuest: os.auth.absorbGuest.handler(async ({ input, context }) => {
-        const user = requireUser(context);
-        if (user.isAnonymous) {
-          throw new ORPCError("UNAUTHORIZED");
-        }
-        return absorbGuest(container.repo, input, user.id);
       }),
     },
   });

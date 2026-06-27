@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AppEventSchema } from "../events";
 import { contract } from "../router";
-import { AbsorbGuestInput } from "./auth";
 import { DashboardSessionSummary } from "./dashboard";
 import { ClosePollInput, StartPollInput, VoteInput } from "./poll";
 import { CreateSessionInput, JoinSessionInput, SessionIdInput, SessionSummarySchema } from "./session";
@@ -13,17 +12,27 @@ describe("contract schemas", () => {
       CreateSessionInput.parse({
         lat: -37.8136,
         lng: 144.9631,
-        cuisines: ["thai", "japanese"],
+        cuisines: [" thai ", "japanese"],
         title: "Friday lunch",
         pollDurationSec: 180,
         promoteThreshold: 3,
       }),
-    ).toMatchObject({ radiusM: 500, title: "Friday lunch", pollDurationSec: 180, promoteThreshold: 3 });
+    ).toMatchObject({ radiusM: 500, cuisines: ["thai", "japanese"], title: "Friday lunch", pollDurationSec: 180, promoteThreshold: 3 });
 
     expect(() => CreateSessionInput.parse({
       lat: -37.8136,
       lng: 144.9631,
       promoteThreshold: 99,
+    })).toThrow();
+    expect(() => CreateSessionInput.parse({
+      lat: -37.8136,
+      lng: 144.9631,
+      radiusM: 3001,
+    })).toThrow();
+    expect(() => CreateSessionInput.parse({
+      lat: -37.8136,
+      lng: 144.9631,
+      cuisines: ["a", "b", "c", "d", "e", "f"],
     })).toThrow();
 
     expect(JoinSessionInput.parse({ joinCode: "abc123", displayName: "Ada" })).toEqual({
@@ -32,11 +41,6 @@ describe("contract schemas", () => {
     });
 
     expect(SessionIdInput.safeParse({ sessionId: "not-a-uuid" }).success).toBe(false);
-  });
-
-  it("validates absorb guest input", () => {
-    expect(() => AbsorbGuestInput.parse({ anonUserId: "" })).toThrow();
-    expect(AbsorbGuestInput.parse({ anonUserId: "anon-1" })).toEqual({ anonUserId: "anon-1" });
   });
 
   it("validates swipe and poll inputs", () => {
@@ -96,9 +100,9 @@ describe("contract schemas", () => {
     ).toThrow();
   });
 
-  it("exposes dashboard and auth router groups", () => {
+  it("exposes dashboard routes without public auth absorption", () => {
     expect(contract.dashboard.history).toBeDefined();
     expect(contract.dashboard.session).toBeDefined();
-    expect(contract.auth.absorbGuest).toBeDefined();
+    expect("auth" in contract).toBe(false);
   });
 });
