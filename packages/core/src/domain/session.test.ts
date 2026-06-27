@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { createSession, joinSession, startSwiping } from "./session";
-import type { OutboxWrite, SessionRepo, TransactionContext } from "../ports/repo";
+import type { AddMemberRecord, OutboxWrite, SessionRepo, TransactionContext } from "../ports/repo";
 
 class FakeSessionRepo implements SessionRepo<TransactionContext> {
-  sessions = new Map<string, { id: string; joinCode: string; status?: "lobby" | "swiping"; hostUserId?: string }>();
-  members: Array<{ sessionId: string; userId: string; isHost: boolean }> = [];
+  sessions = new Map<string, {
+    id: string;
+    joinCode: string;
+    status?: "lobby" | "swiping";
+    hostUserId?: string;
+    title?: string;
+    pollDurationSec?: number;
+    promoteThreshold?: number;
+  }>();
+  members: AddMemberRecord[] = [];
   outbox: OutboxWrite[] = [];
   transactionWrites: string[] = [];
 
@@ -14,7 +22,7 @@ class FakeSessionRepo implements SessionRepo<TransactionContext> {
 
   async createSession(tx: TransactionContext, input: Parameters<SessionRepo<TransactionContext>["createSession"]>[1]) {
     this.transactionWrites.push(`createSession:${tx.txId}`);
-    this.sessions.set(input.id, { id: input.id, joinCode: input.joinCode, status: "lobby", hostUserId: input.hostUserId });
+    this.sessions.set(input.id, { ...input, status: "lobby" });
   }
 
   async addMember(tx: TransactionContext, input: Parameters<SessionRepo<TransactionContext>["addMember"]>[1]) {
@@ -24,6 +32,14 @@ class FakeSessionRepo implements SessionRepo<TransactionContext> {
 
   async getSessionByJoinCode(_tx: TransactionContext, joinCode: string) {
     return [...this.sessions.values()].find((session) => session.joinCode === joinCode) ?? null;
+  }
+
+  async listSessionsForUser() {
+    return [];
+  }
+
+  async getSessionSummary() {
+    return null;
   }
 
   async getSession(_tx: TransactionContext, sessionId: string) {
@@ -80,6 +96,27 @@ describe("session commands", () => {
     });
   });
 
+  it("persists poll options and host image on create", async () => {
+    const repo = new FakeSessionRepo();
+
+    await createSession(
+      { repo, ids: { sessionId: () => "session-1", memberId: () => "member-1", joinCode: () => "ABCD12" }, now: () => "2026-06-20T00:00:00.000Z" },
+      { lat: -37.8136, lng: 144.9631, cuisines: ["thai"], radiusM: 500, pollDurationSec: 180, promoteThreshold: 3, title: "Friday lunch" },
+      "host-user",
+      "Ada",
+      "https://example.test/ada.png",
+    );
+
+    expect(repo.sessions.get("session-1")).toMatchObject({
+      title: "Friday lunch",
+      pollDurationSec: 180,
+      promoteThreshold: 3,
+    });
+    expect(repo.outbox[0]).toMatchObject({
+      payload: { member: { image: "https://example.test/ada.png" } },
+    });
+  });
+
   it("joins by code and appends member.joined in the same repo transaction", async () => {
     const repo = new FakeSessionRepo();
     repo.sessions.set("session-1", { id: "session-1", joinCode: "ABCD12" });
@@ -88,10 +125,12 @@ describe("session commands", () => {
       { repo, ids: { memberId: () => "member-2" }, now: () => "2026-06-20T00:00:00.000Z" },
       { joinCode: "abcd12", displayName: "Grace" },
       "guest-user",
+      "https://example.test/grace.png",
     );
 
     expect(result).toEqual({ sessionId: "session-1", memberId: "member-2" });
     expect(repo.transactionWrites).toEqual(["addMember:tx-1", "outbox:tx-1"]);
+    expect(repo.members[0]).toMatchObject({ image: "https://example.test/grace.png" });
     expect(repo.outbox[0]).toMatchObject({
       aggregate: "session",
       aggregateId: "session-1",
@@ -101,6 +140,7 @@ describe("session commands", () => {
           id: "member-2",
           userId: "guest-user",
           displayName: "Grace",
+          image: "https://example.test/grace.png",
           isHost: false,
           joinedAt: "2026-06-20T00:00:00.000Z",
         },
@@ -111,7 +151,14 @@ describe("session commands", () => {
   it("lets the host move the session into swiping once and emits session.started", async () => {
     const repo = new FakeSessionRepo();
     repo.sessions.set("session-1", { id: "session-1", joinCode: "ABCD12", status: "lobby", hostUserId: "host-user" });
-    repo.members.push({ sessionId: "session-1", userId: "host-user", isHost: true });
+    repo.members.push({
+      id: "member-1",
+      sessionId: "session-1",
+      userId: "host-user",
+      displayName: "Ada",
+      isHost: true,
+      joinedAt: "2026-06-20T00:00:00.000Z",
+    });
 
     await expect(startSwiping({ repo }, "session-1", "host-user")).resolves.toEqual({ status: "swiping" });
     await expect(startSwiping({ repo }, "session-1", "host-user")).resolves.toEqual({ status: "swiping" });
