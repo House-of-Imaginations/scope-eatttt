@@ -1,6 +1,7 @@
 import { PUBLIC_USE_MOCK } from "$env/static/public";
 import type { AppEvent } from "@scope/contract";
 import { parsePublicEnv } from "@scope/config";
+import { subscribeMockEvents } from "./mockHandler";
 
 export interface SseHandlers {
   onOpen?: () => void;
@@ -49,9 +50,14 @@ function createRealSse(sessionId: string, handlers: SseHandlers): SseConnection 
  * Exposes `emit()` so tests and screens can push synthetic AppEvents through
  * the same handler pipeline without a real EventSource.
  */
-function createMockSse(handlers: SseHandlers): SseConnection {
+function createMockSse(sessionId: string, handlers: SseHandlers): SseConnection {
   let lastEventId: string | null = null;
   let open = true;
+  const unsubscribe = subscribeMockEvents(sessionId, (event) => {
+    if (!open) return;
+    lastEventId = event.id;
+    handlers.onEvent(event);
+  });
   handlers.onOpen?.();
 
   return {
@@ -60,6 +66,7 @@ function createMockSse(handlers: SseHandlers): SseConnection {
     },
     close() {
       open = false;
+      unsubscribe();
     },
     emit(event: AppEvent) {
       if (!open) return;
@@ -70,5 +77,5 @@ function createMockSse(handlers: SseHandlers): SseConnection {
 }
 
 export function createSse(sessionId: string, handlers: SseHandlers): SseConnection {
-  return USE_MOCK ? createMockSse(handlers) : createRealSse(sessionId, handlers);
+  return USE_MOCK ? createMockSse(sessionId, handlers) : createRealSse(sessionId, handlers);
 }

@@ -1,11 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-// Mock mode (PUBLIC_USE_MOCK=1). The in-memory mock always succeeds, so to
-// exercise the poll-action ERROR path (BUG 2: a rejected RPC must surface a
-// visible, dismissable error instead of an unhandled promise rejection) we
-// override the singleton api.poll.start to reject ONCE, then assert the banner.
-// This is the genuine failing-first guard the unit layer cannot provide (a
-// Svelte 5 rune component needs a browser, and the mock has no failure mode).
+// Mock mode (PUBLIC_USE_MOCK=1). Exercise the poll-action ERROR path (BUG 2: a
+// rejected RPC must surface a visible, dismissable error instead of an unhandled
+// promise rejection) with the mock transport's one-shot failure hook.
 
 test.describe("Session screen — poll action error handling", () => {
   test("a failed open-poll surfaces a dismissable error banner", async ({
@@ -36,15 +33,11 @@ test.describe("Session screen — poll action error handling", () => {
     ).toBeVisible({ timeout: 8000 });
 
     // Force the next poll.start RPC to reject, then self-restore.
-    await page.evaluate(async () => {
-      const m = await import("/src/lib/client/orpc.ts");
-      const orig = m.api.poll.start;
-      // @ts-expect-error override leaf for the error-path test
-      m.api.poll.start = async () => {
-        // @ts-expect-error restore after one failing call
-        m.api.poll.start = orig;
-        throw new Error("Internal server error");
-      };
+    await page.evaluate(() => {
+      window.sessionStorage.setItem(
+        "scope-eatttt:mock-fail-poll-start",
+        "Internal server error",
+      );
     });
 
     await page.getByRole("button", { name: /open poll/i }).click();

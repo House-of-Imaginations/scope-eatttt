@@ -56,8 +56,9 @@ export function reduce(state: SessionState, event: AppEvent): SessionState {
       return { ...state, status: "swiping" };
 
     case "member.joined": {
-      // Idempotent: a member is identified by userId, not the event/member id.
-      if (state.members.some((m) => m.userId === event.member.userId)) return state;
+      // Idempotent by member id. A single auth user can have multiple members
+      // in one session when several same-browser tabs are used for local QA.
+      if (state.members.some((m) => m.id === event.member.id)) return state;
       return { ...state, members: [...state.members, event.member] };
     }
 
@@ -146,7 +147,14 @@ export interface SessionStore {
 // ponytail: two fixed backoff steps, no jitter lib — YAGNI.
 const BACKOFF_MS = [1000, 3000] as const;
 
-export function createSessionStore(sessionId: string, joinCode: string): SessionStore {
+export function createSessionStore(
+  sessionId: string,
+  joinCode: string,
+  // ponytail: optional tap so the page can react to events the SessionState
+  // reducer ignores (deck.replenished is per-user swipe inventory, not session
+  // state). Fires for every applied event, including reconnect replay.
+  onAppEvent?: (event: AppEvent) => void,
+): SessionStore {
   let state = $state<SessionState>(initialState(sessionId, joinCode));
   let connected = $state(false);
   let lastEventId = $state<string | null>(null);
@@ -168,7 +176,10 @@ export function createSessionStore(sessionId: string, joinCode: string): Session
             .eventsSince({ sessionId, afterEventId: lastEventId })
             .then((events) => {
               for (const ev of events) {
+                if (seenIds.has(ev.id)) continue;
                 state = applyEvent(state, ev, seenIds);
+                lastEventId = ev.id;
+                onAppEvent?.(ev);
               }
             });
         }
@@ -186,8 +197,10 @@ export function createSessionStore(sessionId: string, joinCode: string): Session
         }, delay);
       },
       onEvent: (event) => {
+        const fresh = !seenIds.has(event.id);
         state = applyEvent(state, event, seenIds);
         lastEventId = event.id;
+        if (fresh) onAppEvent?.(event);
       },
     });
   }
