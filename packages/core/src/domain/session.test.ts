@@ -96,6 +96,19 @@ describe("session commands", () => {
     });
   });
 
+  it("generates a 10-character join code when no code generator is injected", async () => {
+    const repo = new FakeSessionRepo();
+
+    const result = await createSession(
+      { repo, ids: { sessionId: () => "session-1", memberId: () => "member-1" }, now: () => "2026-06-20T00:00:00.000Z" },
+      { lat: -37.8136, lng: 144.9631, cuisines: [], radiusM: 500 },
+      "host-user",
+      "Ada",
+    );
+
+    expect(result.joinCode).toMatch(/^[A-Z2-9]{10}$/);
+  });
+
   it("persists poll options and host image on create", async () => {
     const repo = new FakeSessionRepo();
 

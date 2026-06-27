@@ -1,4 +1,8 @@
+import { randomInt } from "node:crypto";
 import type { Candidate, Decision, Restaurant, SessionState } from "@scope/contract";
+
+const JOIN_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const JOIN_CODE_LENGTH = 10;
 
 export * from "./ports/auth";
 export * from "./ports/bus";
@@ -264,5 +268,8 @@ function normalizeJoinCode(joinCode: string): string {
 }
 
 function generateJoinCode(): string {
-  return Math.random().toString(36).slice(2, 8);
+  return Array.from(
+    { length: JOIN_CODE_LENGTH },
+    () => JOIN_CODE_CHARS[randomInt(JOIN_CODE_CHARS.length)],
+  ).join("");
 }

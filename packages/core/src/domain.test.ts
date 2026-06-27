@@ -94,6 +94,20 @@ describe("session creation", () => {
       },
     ]);
   });
+
+  it("generates a 10-character join code when no code generator is injected", () => {
+    const session = createSessionState({
+      id: "session-1",
+      hostUserId: "host-user",
+      hostMemberId: "member-host",
+      hostDisplayName: "Host",
+      lat: -37.8136,
+      lng: 144.9631,
+      now,
+    });
+
+    expect(session.joinCode).toMatch(/^[A-Z2-9]{10}$/);
+  });
 });
 
 describe("member joins", () => {

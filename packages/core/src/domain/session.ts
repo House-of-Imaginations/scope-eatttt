@@ -1,6 +1,10 @@
+import { randomInt } from "node:crypto";
 import type { CreateSessionInput, JoinSessionInput } from "@scope/contract";
 import type { AddMemberRecord, OutboxWrite, SessionRepo, TransactionContext } from "../ports/repo";
 import { NotHostError } from "../index";
+
+const JOIN_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const JOIN_CODE_LENGTH = 10;
 
 export interface SessionCommandIds {
   sessionId?: () => string;
@@ -166,5 +170,8 @@ function normalizeJoinCode(joinCode: string): string {
 }
 
 function randomJoinCode(): string {
-  return Math.random().toString(36).slice(2, 8);
+  return Array.from(
+    { length: JOIN_CODE_LENGTH },
+    () => JOIN_CODE_CHARS[randomInt(JOIN_CODE_CHARS.length)],
+  ).join("");
 }
