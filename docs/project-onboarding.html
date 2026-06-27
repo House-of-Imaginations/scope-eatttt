@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>scope-eatttt project guide</title>
+    <style>
+      :root {
+        --canvas: #fcfbf7;
+        --soft: #f4f2ea;
+        --card: #ffffff;
+        --ink: #1c1917;
+        --muted: #57534e;
+        --blue: #1d4ed8;
+        --yellow: #facc15;
+        --pink: #fbcfe8;
+        --green: #10b981;
+        --line: 3px solid var(--ink);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--canvas);
+        font-family:
+          Inter,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        line-height: 1.55;
+      }
+
+      a {
+        color: var(--ink);
+        font-weight: 800;
+        text-decoration-thickness: 3px;
+        text-underline-offset: 4px;
+      }
+
+      code {
+        padding: 0.1rem 0.35rem;
+        border: 2px solid var(--ink);
+        border-radius: 6px;
+        background: var(--card);
+        font-size: 0.92em;
+      }
+
+      pre {
+        overflow-x: auto;
+        margin: 0;
+        padding: 1rem;
+        border: var(--line);
+        border-radius: 16px;
+        background: #111;
+        color: #fff;
+        box-shadow: 5px 5px 0 var(--ink);
+      }
+
+      pre code {
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+      }
+
+      .shell {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+        gap: 2rem;
+        align-items: end;
+        min-height: 92vh;
+        padding: 3rem 0 2rem;
+      }
+
+      .eyebrow,
+      .tag {
+        display: inline-flex;
+        width: fit-content;
+        align-items: center;
+        border: 2px solid var(--ink);
+        border-radius: 6px;
+        background: var(--pink);
+        padding: 0.25rem 0.55rem;
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-family:
+          Fredoka,
+          "Space Grotesk",
+          "Plus Jakarta Sans",
+          system-ui,
+          sans-serif;
+        font-weight: 800;
+        line-height: 1.08;
+      }
+
+      h1 {
+        max-width: 10ch;
+        margin-top: 1rem;
+        font-size: clamp(3rem, 9vw, 6.8rem);
+      }
+
+      h2 {
+        font-size: clamp(2rem, 4vw, 3.5rem);
+      }
+
+      h3 {
+        font-size: 1.35rem;
+      }
+
+      .lede {
+        max-width: 58ch;
+        margin: 1rem 0 0;
+        color: var(--muted);
+        font-size: 1.1rem;
+      }
+
+      .hero-card,
+      .panel,
+      .step,
+      .path-card,
+      .warning,
+      .callout {
+        border: var(--line);
+        border-radius: 16px;
+        background: var(--card);
+        box-shadow: 6px 6px 0 var(--ink);
+      }
+
+      .hero-card {
+        padding: 1rem;
+      }
+
+      .hero-card img {
+        display: block;
+        width: 100%;
+        border: var(--line);
+        border-radius: 12px;
+        background: var(--soft);
+      }
+
+      .hero-card p {
+        margin: 0.85rem 0 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        margin: 0 -1rem 3rem;
+        padding: 0.75rem 1rem;
+        border-block: var(--line);
+        background: color-mix(in srgb, var(--canvas) 94%, white);
+      }
+
+      .nav .shell {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .nav a {
+        display: inline-flex;
+        min-height: 40px;
+        align-items: center;
+        border: 2px solid var(--ink);
+        border-radius: 999px;
+        background: var(--yellow);
+        padding: 0.45rem 0.8rem;
+        text-decoration: none;
+        box-shadow: 3px 3px 0 var(--ink);
+      }
+
+      section {
+        padding: 4rem 0;
+      }
+
+      .section-head {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: end;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+      }
+
+      .section-head p {
+        max-width: 52ch;
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .grid.two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid.three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .panel,
+      .path-card {
+        padding: 1.25rem;
+      }
+
+      .panel.blue {
+        background: var(--blue);
+        color: #fff;
+      }
+
+      .panel.yellow {
+        background: var(--yellow);
+      }
+
+      .panel.green {
+        background: var(--green);
+      }
+
+      .panel.pink {
+        background: var(--pink);
+      }
+
+      .panel p,
+      .path-card p {
+        margin: 0.65rem 0 0;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(150px, 1fr));
+        gap: 0.75rem;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+      }
+
+      .step {
+        min-height: 142px;
+        padding: 1rem;
+        background: var(--soft);
+      }
+
+      .step strong {
+        display: block;
+        margin-bottom: 0.4rem;
+        font-family:
+          Fredoka,
+          "Space Grotesk",
+          system-ui,
+          sans-serif;
+        font-size: 1.05rem;
+      }
+
+      .step span {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .checklist {
+        display: grid;
+        gap: 0.75rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .checklist li {
+        display: grid;
+        grid-template-columns: 32px 1fr;
+        gap: 0.75rem;
+        align-items: start;
+        padding: 1rem;
+        border: 2px solid var(--ink);
+        border-radius: 12px;
+        background: var(--card);
+      }
+
+      .num {
+        display: inline-grid;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        border: 2px solid var(--ink);
+        border-radius: 999px;
+        background: var(--yellow);
+        font-weight: 800;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        border: var(--line);
+        border-radius: 16px;
+        background: var(--card);
+        box-shadow: 6px 6px 0 var(--ink);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 760px;
+      }
+
+      th,
+      td {
+        padding: 0.85rem 1rem;
+        border-bottom: 2px solid var(--ink);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--yellow);
+        font-family:
+          Fredoka,
+          "Space Grotesk",
+          system-ui,
+          sans-serif;
+        font-size: 1rem;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .warning,
+      .callout {
+        padding: 1.25rem;
+      }
+
+      .warning {
+        background: var(--yellow);
+      }
+
+      .callout {
+        background: var(--pink);
+      }
+
+      .footer {
+        padding: 2rem 0 4rem;
+      }
+
+      @media (max-width: 920px) {
+        .hero,
+        .grid.two,
+        .grid.three {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          min-height: auto;
+          padding-top: 2rem;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .shell {
+          width: min(100% - 24px, 1180px);
+        }
+
+        section {
+          padding: 3rem 0;
+        }
+
+        .panel,
+        .path-card,
+        .warning,
+        .callout {
+          padding: 1rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="shell hero">
+      <div>
+        <span class="eyebrow">New contributor map</span>
+        <h1>scope-eatttt</h1>
+        <p class="lede">
+          A real-time lunch decider: create a session, share a code, swipe restaurants,
+          promote crowd-approved picks, vote, and reveal the winner live.
+        </p>
+      </div>
+      <figure class="hero-card">
+        <img src="./assets/scope-eatttt-architecture-excalidraw.png" alt="scope-eatttt architecture diagram" />
+        <figcaption>
+          Start with the flow, then trace one command through contract, web, core, db, outbox, relay, and SSE.
+        </figcaption>
+      </figure>
+    </header>
+
+    <nav class="nav" aria-label="Project guide">
+      <div class="shell">
+        <a href="#first-hour">First hour</a>
+        <a href="#mental-model">Mental model</a>
+        <a href="#run-it">Run it</a>
+        <a href="#where-code-lives">Code map</a>
+        <a href="#rules">Rules</a>
+        <a href="#tests">Tests</a>
+      </div>
+    </nav>
+
+    <main>
+      <section id="first-hour" class="shell">
+        <div class="section-head">
+          <h2>Your first hour</h2>
+          <p>Read just enough to orient, then run the narrowest path that proves the app works on your machine.</p>
+        </div>
+
+        <ol class="checklist">
+          <li>
+            <span class="num">1</span>
+            <div>
+              <strong>Read the product flow in <a href="../README.md">README.md</a>.</strong>
+              The P1 loop is host creates session -> member joins -> everyone swipes -> candidates promote -> host opens poll -> votes -> winner.
+            </div>
+          </li>
+          <li>
+            <span class="num">2</span>
+            <div>
+              <strong>Skim <a href="../AGENTS.md">AGENTS.md</a> before edits.</strong>
+              It defines the architecture boundaries, PgBouncer/LISTEN gotchas, and the repo rule to commit per <a href="../COMMIT.md">COMMIT.md</a>.
+            </div>
+          </li>
+          <li>
+            <span class="num">3</span>
+            <div>
+              <strong>Open <a href="./superpowers/handoffs/2026-06-21-frontend-handoff.md">the frontend handoff</a>.</strong>
+              It explains the current backend assumptions, the live/SSE expectations, and the remaining frontend integration direction.
+            </div>
+          </li>
+          <li>
+            <span class="num">4</span>
+            <div>
+              <strong>Trace one command: <code>session.startSwiping</code>.</strong>
+              Follow it from <code>packages/contract/src/router.ts</code> to <code>apps/web/src/lib/server/orpc.ts</code>, <code>packages/core/src/domain/session.ts</code>, the DB repo, outbox event, SSE reducer, and <code>apps/web/src/routes/s/[id]/+page.svelte</code>.
+            </div>
+          </li>
+          <li>
+            <span class="num">5</span>
+            <div>
+              <strong>Run the app with fake providers first.</strong>
+              Do not wire Google Places or OCR until the fake path works; the current local defaults are built for offline development.
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section id="mental-model" class="shell">
+        <div class="section-head">
+          <h2>Mental model</h2>
+          <p>The app is intentionally split: typed commands change state, events move that state to browsers, and background jobs do slow work.</p>
+        </div>
+
+        <div class="flow" aria-label="Lunch session flow">
+          <div class="step"><strong>Start</strong><span>Host creates a <code>lunch_session</code> with location, cuisines, and radius.</span></div>
+          <div class="step"><strong>Join</strong><span>Guests join by code through anonymous Better Auth sessions.</span></div>
+          <div class="step"><strong>Swipe</strong><span>Each member gets a deck and accepts or rejects restaurants.</span></div>
+          <div class="step"><strong>Promote</strong><span>A restaurant becomes a poll candidate after two distinct accepts.</span></div>
+          <div class="step"><strong>Vote</strong><span>Host opens the poll; members upvote or downvote candidates.</span></div>
+          <div class="step"><strong>Decide</strong><span>Poll closes by timer or host action; highest net score wins.</span></div>
+        </div>
+
+        <div class="grid three" style="margin-top: 1.5rem">
+          <article class="panel yellow">
+            <span class="tag">Commands</span>
+            <h3>oRPC changes state</h3>
+            <p>Mutations and query-style reads go through <code>packages/contract</code> and the SvelteKit oRPC handler.</p>
+          </article>
+          <article class="panel pink">
+            <span class="tag">Events</span>
+            <h3>SSE updates browsers</h3>
+            <p>Do not stream over oRPC. Browsers subscribe to <code>GET /sessions/:id/events</code> and replay with <code>Last-Event-ID</code>.</p>
+          </article>
+          <article class="panel green">
+            <span class="tag">Jobs</span>
+            <h3>BullMQ handles slow work</h3>
+            <p>Places fetching and poll closing run in <code>apps/worker</code>, backed by Redis and the outbox event path.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="run-it" class="shell">
+        <div class="section-head">
+          <h2>Run it locally</h2>
+          <p>Start with fake providers. Add real vendor keys only after the fake end-to-end loop works.</p>
+        </div>
+
+        <div class="grid two">
+          <div>
+            <pre><code>pnpm install
+cp .env.example .env
+docker compose up -d
+pnpm db:migrate
+pnpm --filter worker dev
+pnpm --filter web dev</code></pre>
+          </div>
+          <aside class="warning">
+            <h3>Use the right database URLs</h3>
+            <p><code>DATABASE_URL</code> points at PgBouncer on <code>localhost:6432</code> for normal app queries.</p>
+            <p><code>DATABASE_DIRECT_URL</code> points at Postgres on <code>localhost:5432</code> for migrations and relay <code>LISTEN</code>.</p>
+            <p>The pooled postgres.js client must keep <code>prepare: false</code>.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="where-code-lives" class="shell">
+        <div class="section-head">
+          <h2>Where code lives</h2>
+          <p>Change the smallest layer that owns the behavior. Do not let vendor details leak into domain code.</p>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Area</th>
+                <th>Purpose</th>
+                <th>Start here</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>apps/web</code></td>
+                <td>SvelteKit screens, auth bootstrap, oRPC server handlers, SSE gateway, client stores.</td>
+                <td><code>src/routes/+page.svelte</code>, <code>src/routes/s/[id]/+page.svelte</code>, <code>src/lib/server/orpc.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>apps/worker</code></td>
+                <td>BullMQ jobs for places fetches and automatic poll closing.</td>
+                <td><code>src/index.ts</code>, <code>src/jobs/placesFetch.ts</code>, <code>src/jobs/pollClose.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>packages/contract</code></td>
+                <td>Shared oRPC contract, Zod schemas, app events, and type seam for web/mobile.</td>
+                <td><code>src/router.ts</code>, <code>src/events.ts</code>, <code>src/schemas/</code></td>
+              </tr>
+              <tr>
+                <td><code>packages/core</code></td>
+                <td>Domain rules and ports. This package must stay vendor-free.</td>
+                <td><code>src/domain/session.ts</code>, <code>src/domain/swipe.ts</code>, <code>src/domain/poll.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>packages/adapters</code></td>
+                <td>Drizzle repository, Redis bus/cache, BullMQ queue, Better Auth, Google Places adapter.</td>
+                <td><code>src/repo/drizzleRepo.ts</code>, <code>src/bus/redis.ts</code>, <code>src/places/google.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>packages/db</code></td>
+                <td>Drizzle schema, DB clients, migrations, and the direct outbox listener.</td>
+                <td><code>src/schema/</code>, <code>src/client.ts</code>, <code>src/listener.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>packages/ui</code> + <code>packages/tokens</code></td>
+                <td>Reusable Svelte components and Hungry Sandwich Club design tokens.</td>
+                <td><code>packages/ui/src/</code>, <code>packages/tokens/src/theme.css</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="rules" class="shell">
+        <div class="section-head">
+          <h2>Rules that matter</h2>
+          <p>These are the constraints most likely to prevent subtle local-to-production breakage.</p>
+        </div>
+
+        <div class="grid two">
+          <article class="path-card">
+            <h3>Keep core clean</h3>
+            <p>Domain code depends on ports, not Google, Redis, BullMQ, Drizzle, or Better Auth.</p>
+          </article>
+          <article class="path-card">
+            <h3>Use the transactional outbox</h3>
+            <p>Commands write domain rows and <code>outbox_event</code> rows in one transaction. Do not dual-write directly to Redis from command logic.</p>
+          </article>
+          <article class="path-card">
+            <h3>Separate commands from streams</h3>
+            <p>Use oRPC for commands and reads. Use SSE for live updates and reconnect replay.</p>
+          </article>
+          <article class="path-card">
+            <h3>Keep Places server-side</h3>
+            <p>Browser code never calls Places. Search is field-masked, cached for 30 minutes, and routed through adapters/jobs.</p>
+          </article>
+          <article class="path-card">
+            <h3>Do not hand-edit auth tables</h3>
+            <p>Better Auth owns <code>user</code>, <code>session</code>, <code>account</code>, and <code>verification</code>. App tables FK to <code>user.id</code>.</p>
+          </article>
+          <article class="path-card">
+            <h3>OCR needs human confirmation</h3>
+            <p>Phase 2 receipt OCR can suggest bill data, but it must never auto-finalize a bill.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="tests" class="shell">
+        <div class="section-head">
+          <h2>Checks to run</h2>
+          <p>Pick the narrowest check for your change, then run a wider check before claiming the work is done.</p>
+        </div>
+
+        <div class="grid two">
+          <div class="panel">
+            <h3>Normal validation</h3>
+            <pre><code>pnpm check-types
+pnpm test
+pnpm build</code></pre>
+          </div>
+          <div class="panel">
+            <h3>Focused examples</h3>
+            <pre><code>pnpm --filter @scope/core test
+pnpm --filter web test -- tests/session-flow.spec.ts
+pnpm --filter @scope/ui test</code></pre>
+          </div>
+        </div>
+
+        <div class="callout" style="margin-top: 1.5rem">
+          <h3>When you modify UI</h3>
+          <p>Match <a href="../DESIGN.md">DESIGN.md</a>: cream canvas, thick black borders, flat offset shadows, bright retro accents, and real app screens instead of marketing pages.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="shell footer">
+      <p class="muted">
+        Keep this guide short. The source of truth remains the code, <a href="../README.md">README.md</a>,
+        <a href="../AGENTS.md">AGENTS.md</a>, and the handoff docs in <code>docs/superpowers/</code>.
+      </p>
+    </footer>
+  </body>
+</html>
