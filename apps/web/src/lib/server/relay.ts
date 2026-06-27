@@ -1,6 +1,7 @@
 import { AppEventSchema, type AppEvent } from "@scope/contract";
 import type { EventBus, PublishedAppEvent } from "@scope/core";
 import { listenOutbox } from "@scope/db";
+import { getAppLogger } from "@scope/logging";
 
 export interface RelayOutboxRow {
   id: string;
@@ -84,7 +85,11 @@ async function dispatchRow(store: RelayStore, bus: EventBus, row: RelayOutboxRow
     // ponytail: skip malformed rows (e.g. schema violations from stale data)
     // rather than crashing the relay process. Mark dispatched so the row
     // doesn't block future drain cycles.
-    console.error("[relay] skipping malformed outbox row", row.id, row.type, err);
+    getAppLogger(["relay"]).error("Skipping malformed outbox row", {
+      outboxId: row.id,
+      type: row.type,
+      error: err,
+    });
     await store.markDispatched(row.id);
     return;
   }

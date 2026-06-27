@@ -1,5 +1,6 @@
 import { PUBLIC_USE_MOCK } from "$env/static/public";
 import { parsePublicEnv } from "@scope/config";
+import { getAppLogger } from "@scope/logging/browser";
 
 // ponytail: plain fetch, no better-auth client lib, no abstraction layer.
 const USE_MOCK = parsePublicEnv({ PUBLIC_USE_MOCK }).useMock;
@@ -54,7 +55,10 @@ export async function ensureAnonSession(): Promise<void> {
           });
           if (!resp.ok) {
             const body = await resp.text().catch(() => "");
-            console.error(`[auth] anonymous sign-in failed: HTTP ${resp.status} — ${body}`);
+            getAppLogger(["auth"]).error("Anonymous sign-in failed: HTTP {status} - {body}", {
+              status: resp.status,
+              body,
+            });
           }
           return; // success — exit retry loop
         } catch (err) {
@@ -65,7 +69,7 @@ export async function ensureAnonSession(): Promise<void> {
         }
       }
       // All retries exhausted — log once, resolve quietly so layout bootstrap never crashes.
-      console.error("[auth] ensureAnonSession failed after retries:", lastErr);
+      getAppLogger(["auth"]).error("ensureAnonSession failed after retries", { error: lastErr });
     } finally {
       // Clear the in-flight reference so subsequent calls (e.g. after a sign-out)
       // can attempt a fresh bootstrap.
