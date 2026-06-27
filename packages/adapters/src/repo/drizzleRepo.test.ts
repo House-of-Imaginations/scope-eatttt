@@ -14,7 +14,7 @@ const pollDeadline = "2026-06-20T01:07:03.000Z";
 const testSessionUuid = "00000000-0000-4000-8000-000000000001";
 
 describe("DrizzleSessionRepo", () => {
-  it("keeps domain cache and outbox writes transactional against migrated Postgres", async () => {
+  it("keeps writes transactional and serves dashboard reads against migrated Postgres", async () => {
     const container = await new PostgreSqlContainer("postgres:16-alpine")
       .withDatabase("scope_eatttt")
       .withUsername("scope")
@@ -71,6 +71,42 @@ describe("DrizzleSessionRepo", () => {
 
       await expect(clients.db.select().from(restaurantCache)).resolves.toHaveLength(1);
       await expect(clients.db.select().from(outboxEvent)).resolves.toHaveLength(1);
+
+      await repo.withTx(async (tx) => {
+        await repo.createSession(tx, sessionInput({ id: testSessionUuid, title: "Friday lunch" }));
+        await repo.addMember(tx, memberInput({
+          id: "00000000-0000-4000-8000-000000000101",
+          sessionId: testSessionUuid,
+        }));
+        const { candidateId } = await repo.addCandidate(tx, {
+          sessionId: testSessionUuid,
+          restaurantId: "place-1",
+          promotedAt: testTimestamp,
+        });
+        await repo.startPoll(tx, testSessionUuid, pollDeadline);
+        await repo.closePoll(tx, testSessionUuid, candidateId);
+      });
+
+      await repo.withTx(async (tx) => {
+        await expect(repo.listSessionsForUser(tx, "u1")).resolves.toEqual([{
+          id: testSessionUuid,
+          title: "Friday lunch",
+          joinCode: "ABCD",
+          status: "decided",
+          createdAt: testTimestamp,
+          winnerName: "Noodle House",
+        }]);
+        await expect(repo.getSessionSummary(tx, testSessionUuid, "stranger")).resolves.toBeNull();
+        await expect(repo.getSessionSummary(tx, testSessionUuid, "u1")).resolves.toMatchObject({
+          id: testSessionUuid,
+          title: "Friday lunch",
+          joinCode: "ABCD",
+          status: "decided",
+          winnerName: "Noodle House",
+          members: [{ userId: "u1", displayName: "Ada" }],
+          candidates: [{ restaurant: { id: "place-1", name: "Noodle House" } }],
+        });
+      });
     } finally {
       await clients.pooledSql.end({ timeout: 5 });
       await clients.directSql.end({ timeout: 5 });
@@ -142,10 +178,13 @@ describe("DrizzleSessionRepo", () => {
         joinCode: "ABCD",
         hostUserId: "u1",
         status: "swiping",
+        title: "Friday lunch",
         lat: -37.8136,
         lng: 144.9631,
         radiusM: 500,
         cuisines: ["thai"],
+        pollDurationSec: 180,
+        promoteThreshold: 3,
         pollDeadlineAt: new Date(pollDeadline),
         winnerCandidateId: "00000000-0000-4000-8000-000000000301",
       }],
@@ -155,6 +194,7 @@ describe("DrizzleSessionRepo", () => {
           sessionId: "s1",
           userId: "u1",
           displayName: "Ada",
+          image: "https://example.test/ada.png",
           isHost: true,
           radiusM: 500,
           joinedAt: new Date(testTimestamp),
@@ -169,10 +209,13 @@ describe("DrizzleSessionRepo", () => {
         joinCode: "ABCD",
         hostUserId: "u1",
         status: "swiping",
+        title: "Friday lunch",
         lat: -37.8136,
         lng: 144.9631,
         radiusM: 500,
         cuisines: ["thai"],
+        pollDurationSec: 180,
+        promoteThreshold: 3,
         pollDeadlineAt: pollDeadline,
         winnerCandidateId: "00000000-0000-4000-8000-000000000301",
       });
@@ -181,10 +224,13 @@ describe("DrizzleSessionRepo", () => {
         joinCode: "ABCD",
         hostUserId: "u1",
         status: "swiping",
+        title: "Friday lunch",
         lat: -37.8136,
         lng: 144.9631,
         radiusM: 500,
         cuisines: ["thai"],
+        pollDurationSec: 180,
+        promoteThreshold: 3,
         pollDeadlineAt: pollDeadline,
         winnerCandidateId: "00000000-0000-4000-8000-000000000301",
       });
@@ -194,6 +240,7 @@ describe("DrizzleSessionRepo", () => {
           sessionId: "s1",
           userId: "u1",
           displayName: "Ada",
+          image: "https://example.test/ada.png",
           isHost: true,
           radiusM: 500,
           joinedAt: testTimestamp,
@@ -206,6 +253,67 @@ describe("DrizzleSessionRepo", () => {
       "select:lunch_session",
       "select:session_member",
     ]);
+  });
+
+  it("lists dashboard history and member-gates session summaries", async () => {
+    const summaryId = "00000000-0000-4000-8000-000000000001";
+    const db = makeFakeDb({
+      lunch_session: [{
+        id: summaryId,
+        title: "Friday lunch",
+        joinCode: "ABCD",
+        status: "decided",
+        createdAt: new Date(testTimestamp),
+        winnerCandidateId: "c1",
+        winnerName: "Noodle House",
+      }, {
+        id: summaryId,
+        title: "Friday lunch",
+        joinCode: "ABCD",
+        status: "decided",
+        createdAt: new Date(testTimestamp),
+        winnerCandidateId: "c1",
+        winnerName: "Noodle House",
+      }],
+      session_member: [{ id: "m1", sessionId: summaryId, userId: "u1", displayName: "Ada", image: null, isHost: true, joinedAt: new Date(testTimestamp) }],
+      poll_candidate: [{
+        id: "c1",
+        candidateId: "c1",
+        promotedAt: new Date(testTimestamp),
+        net: 1,
+        up: 1,
+        down: 0,
+        name: "Noodle House",
+        address: "1 Main St",
+        cuisineTags: ["thai"],
+        lat: null,
+        lng: null,
+        rating: null,
+        priceLevel: null,
+        distanceM: null,
+      }],
+    });
+    const repo = new DrizzleSessionRepo(db);
+
+    await repo.withTx(async (tx) => {
+      await expect(repo.listSessionsForUser(tx, "u1")).resolves.toEqual([{
+        id: summaryId,
+        title: "Friday lunch",
+        joinCode: "ABCD",
+        status: "decided",
+        createdAt: testTimestamp,
+        winnerName: "Noodle House",
+      }]);
+      await expect(repo.getSessionSummary(tx, summaryId, "u1")).resolves.toMatchObject({
+        id: summaryId,
+        title: "Friday lunch",
+        joinCode: "ABCD",
+        status: "decided",
+        winnerName: "Noodle House",
+        members: [{ displayName: "Ada" }],
+        candidates: [{ restaurant: { name: "Noodle House" } }],
+      });
+    });
   });
 
   it("covers swipe repository writes and queries", async () => {
@@ -400,6 +508,14 @@ describe("DrizzleSessionRepo", () => {
       { userId: "real-user" },
     ]);
   });
+
+  it("checks whether a user is anonymous", async () => {
+    const db = makeFakeDb({ user: [{ isAnonymous: true }] });
+    const repo = new DrizzleSessionRepo(db);
+
+    await expect(repo.isAnonymousUser("anon-user")).resolves.toBe(true);
+    expect(operationLabels(db.root)).toEqual(["select:user"]);
+  });
 });
 
 function sessionInput(overrides: Partial<CreateSessionRecord> = {}): CreateSessionRecord {
@@ -411,12 +527,14 @@ function sessionInput(overrides: Partial<CreateSessionRecord> = {}): CreateSessi
     lng: 2,
     radiusM: 500,
     cuisines: ["sushi"],
+    pollDurationSec: 300,
+    promoteThreshold: 2,
     createdAt: testTimestamp,
     ...overrides,
   };
 }
 
-function memberInput(): AddMemberRecord {
+function memberInput(overrides: Partial<AddMemberRecord> = {}): AddMemberRecord {
   return {
     id: "m1",
     sessionId: "s1",
@@ -425,6 +543,7 @@ function memberInput(): AddMemberRecord {
     isHost: true,
     radiusM: 500,
     joinedAt: testTimestamp,
+    ...overrides,
   };
 }
 
@@ -441,7 +560,7 @@ function outboxInput(overrides: Partial<OutboxWrite> = {}): OutboxWrite {
 async function applyMigrations(sqlClient: ReturnType<typeof createDatabaseClients>["pooledSql"]): Promise<void> {
   await sqlClient`set client_min_messages to warning`;
 
-  for (const file of ["0000_normal_gateway.sql", "0001_outbox_trigger.sql", "0002_member_scoped_activity.sql"]) {
+  for (const file of ["0000_normal_gateway.sql", "0001_outbox_trigger.sql", "0002_member_scoped_activity.sql", "0003_mute_slapstick.sql"]) {
     const migration = readFileSync(resolve(import.meta.dirname, "../../../db/migrations", file), "utf8");
 
     for (const statement of migration.split("--> statement-breakpoint")) {
@@ -460,7 +579,8 @@ type TableName =
   | "restaurant_cache"
   | "poll_candidate"
   | "vote"
-  | "outbox_event";
+  | "outbox_event"
+  | "user";
 
 interface FakeOperation {
   kind: "insert" | "select" | "update";
@@ -634,7 +754,8 @@ function tableName(table: unknown): TableName {
       | typeof restaurantCache
       | typeof pollCandidate
       | typeof vote
-      | typeof outboxEvent,
+      | typeof outboxEvent
+      | typeof user,
   );
   return name as TableName;
 }
