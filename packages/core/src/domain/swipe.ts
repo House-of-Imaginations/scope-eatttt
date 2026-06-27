@@ -19,11 +19,11 @@ export interface RadiusEvaluation {
 
 export interface SwipeRepo<Tx = TransactionContext> {
   withTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
-  recordSwipe(tx: Tx, input: { sessionId: string; userId: string; restaurantId: string; decision: Decision; swipedAt: string }): Promise<{ created: boolean }>;
+  recordSwipe(tx: Tx, input: { sessionId: string; userId: string; memberId: string; restaurantId: string; decision: Decision; swipedAt: string }): Promise<{ created: boolean }>;
   countAccepts(tx: Tx, sessionId: string, restaurantId: string): Promise<number>;
   isCandidate(tx: Tx, sessionId: string, restaurantId: string): Promise<boolean>;
   addCandidate(tx: Tx, input: { sessionId: string; restaurantId: string; promotedAt: string }): Promise<{ candidateId: string }>;
-  updateMemberRadius(tx: Tx, sessionId: string, userId: string, radiusM: number): Promise<void>;
+  updateMemberRadius(tx: Tx, sessionId: string, memberId: string, radiusM: number): Promise<void>;
   insertOutbox(tx: Tx, event: OutboxWrite): Promise<string>;
 }
 
@@ -67,12 +67,14 @@ export async function decideSwipe<Tx>(
   deps: DecideSwipeDeps<Tx>,
   input: DecideSwipeInput,
   userId: string,
+  memberId = userId,
 ): Promise<DecideSwipeResult> {
   return deps.repo.withTx(async (tx) => {
     const swipedAt = deps.now();
     const record = await deps.repo.recordSwipe(tx, {
       sessionId: input.sessionId,
       userId,
+      memberId,
       restaurantId: input.restaurantId,
       decision: input.decision,
       swipedAt,
@@ -83,10 +85,10 @@ export async function decideSwipe<Tx>(
     }
 
     if (input.decision === "reject") {
-      return handleReject(deps, tx, input, userId);
+      return handleReject(deps, tx, input, userId, memberId);
     }
 
-    await deps.streak.reset(input.sessionId, userId);
+    await deps.streak.reset(input.sessionId, memberId);
 
     const acceptCount = await deps.repo.countAccepts(tx, input.sessionId, input.restaurantId);
     const alreadyCandidate = await deps.repo.isCandidate(tx, input.sessionId, input.restaurantId);
@@ -111,8 +113,9 @@ async function handleReject<Tx>(
   tx: Tx,
   input: DecideSwipeInput,
   userId: string,
+  memberId: string,
 ): Promise<DecideSwipeResult> {
-  const streak = await deps.streak.incr(input.sessionId, userId);
+  const streak = await deps.streak.incr(input.sessionId, memberId);
   const radius = deps.radius;
 
   if (!radius || input.memberRadiusM === undefined || input.deckLeft === undefined) {
@@ -125,7 +128,7 @@ async function handleReject<Tx>(
     return { promoted: false };
   }
 
-  await deps.repo.updateMemberRadius(tx, input.sessionId, userId, evaluation.newRadiusM);
+  await deps.repo.updateMemberRadius(tx, input.sessionId, memberId, evaluation.newRadiusM);
   await deps.repo.insertOutbox(tx, promptBroadenEvent(input.sessionId, userId, evaluation.newRadiusM));
 
   return { promoted: false, broaden: true, newRadiusM: evaluation.newRadiusM };

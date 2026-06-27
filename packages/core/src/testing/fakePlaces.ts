@@ -13,7 +13,7 @@ export class FakePlaces implements PlacesProvider {
         address: `${ordinal} Fake Street`,
         cuisineTags: q.cuisines,
         rating: 4 + index / 10,
-        priceLevel: ordinal,
+        priceLevel: Math.min(ordinal, 4), // clamp to schema max(4)
         distanceM: ordinal * 125,
       };
     });

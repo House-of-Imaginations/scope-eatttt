@@ -15,6 +15,7 @@
     "@scope/contract": "workspace:*",
     "@scope/core": "workspace:*",
     "@scope/db": "workspace:*",
+    "@scope/logging": "workspace:*",
     "bullmq": "^5.79.0",
     "dotenv-cli": "^11.0.0"
   },

@@ -15,6 +15,13 @@
       "when": 1781940730223,
       "tag": "0001_outbox_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781940731223,
+      "tag": "0002_member_scoped_activity",
+      "breakpoints": true
     }
   ]
 }

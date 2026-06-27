@@ -2,15 +2,16 @@ import { oc } from "@orpc/contract";
 import { z } from "zod";
 import { AppEventSchema, CandidateSchema, RestaurantSchema } from "./events";
 import { ClosePollInput, StartPollInput, VoteInput } from "./schemas/poll";
-import { CreateSessionInput, JoinSessionInput, SessionIdInput, SessionStateSchema } from "./schemas/session";
+import { CreateSessionInput, JoinSessionInput, MemberScopedSessionInput, SessionIdInput, SessionStateSchema } from "./schemas/session";
 import { BroadenInput, SwipeInput } from "./schemas/swipe";
 import { DeckInput } from "./schemas/swipe";
 
 export const contract = {
   session: {
-    create: oc.input(CreateSessionInput).output(z.object({ sessionId: z.string().uuid(), joinCode: z.string() })),
+    create: oc.input(CreateSessionInput).output(z.object({ sessionId: z.string().uuid(), joinCode: z.string(), memberId: z.string().uuid() })),
     join: oc.input(JoinSessionInput).output(z.object({ sessionId: z.string().uuid(), memberId: z.string().uuid() })),
-    state: oc.input(SessionIdInput).output(SessionStateSchema.nullable()),
+    startSwiping: oc.input(MemberScopedSessionInput).output(z.object({ status: z.literal("swiping") })),
+    state: oc.input(MemberScopedSessionInput).output(SessionStateSchema.nullable()),
     eventsSince: oc.input(SessionIdInput.extend({ afterEventId: z.string().uuid().optional() })).output(z.array(AppEventSchema)),
   },
   swipe: {

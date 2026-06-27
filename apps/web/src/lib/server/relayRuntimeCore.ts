@@ -7,7 +7,9 @@ export interface RelayRuntimeDeps {
   building: boolean;
   getContainer: () => AppContainer;
   startRelay: (options: StartRelayOptions) => Promise<StopRelay>;
-  logger?: Pick<Console, "error">;
+  logger?: {
+    error(message: string, properties?: Record<string, unknown>): void;
+  };
 }
 
 export interface RelayRuntime {
@@ -36,7 +38,7 @@ export function createRelayRuntime(deps: RelayRuntimeDeps): RelayRuntime {
         });
       })().catch((error: unknown) => {
         startPromise = undefined;
-        deps.logger?.error("Failed to start outbox relay", error);
+        deps.logger?.error("Failed to start outbox relay", { error });
       });
     },
     started() {

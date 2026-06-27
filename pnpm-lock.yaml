@@ -50,6 +50,9 @@ importers:
       '@scope/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@scope/logging':
+        specifier: workspace:*
+        version: link:../../packages/logging
       '@scope/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
@@ -114,6 +117,9 @@ importers:
       '@scope/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@scope/logging':
+        specifier: workspace:*
+        version: link:../../packages/logging
       bullmq:
         specifier: ^5.79.0
         version: 5.79.0
@@ -231,6 +237,19 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@26.0.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
+
+  packages/logging:
+    dependencies:
+      '@logtape/logtape':
+        specifier: ^2.2.1
+        version: 2.2.1
+    devDependencies:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -1027,6 +1046,9 @@ packages:
 
   '@kwsites/file-exists@1.1.1':
     resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
+
+  '@logtape/logtape@2.2.1':
+    resolution: {integrity: sha512-SkRptJUEAbGuf+/blXDxDa8sSq8no+lxJlfwPTMzrHIULOMsNZRaqT2qF3H9tmGOsaLYc+uF3orRCQfoH0qKzA==}
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4':
     resolution: {integrity: sha512-LCkGo6JDfaBhgST7UpPWgNgLINpcpabaHfyz5OBx75nUYxBsaEPxjnyNjWpeb/xBup/682QnBfRBy2/LvPutZQ==}
@@ -3668,6 +3690,8 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
+
+  '@logtape/logtape@2.2.1': {}
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4':
     optional: true

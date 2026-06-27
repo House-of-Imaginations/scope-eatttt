@@ -59,15 +59,20 @@ describe("reduce", () => {
     expect(s.winnerCandidateId).toBe("c1");
   });
 
-  it("is idempotent for a duplicate member (same userId)", () => {
+  it("keeps same-user members separate but ignores the same member twice", () => {
     const ev: AppEvent = {
       ...base(),
       type: "member.joined",
       member: { id: "m1", userId: "u1", displayName: "A", isHost: true, joinedAt: "2026-06-21T00:00:00.000Z" },
     };
     let s = reduce(initialState("s1", "CODE"), ev);
-    s = reduce(s, ev);
-    expect(s.members).toHaveLength(1);
+    s = reduce(s, {
+      ...ev,
+      id: "00000000-0000-0000-0000-000000000099",
+      member: { ...ev.member, id: "m2", displayName: "B", isHost: false },
+    });
+    s = reduce(s, { ...ev, id: "00000000-0000-0000-0000-000000000098" });
+    expect(s.members.map((member) => member.displayName)).toEqual(["A", "B"]);
   });
 
   it("does not mutate the input state (purity)", () => {
@@ -177,6 +182,71 @@ describe("applyEvent (store-level dedupe)", () => {
       type: "member.joined",
       member: { id: "m2", userId: "u2", displayName: "B", isHost: false, joinedAt: "2026-06-21T00:00:00.000Z" },
     }, seen);
+    expect(s.members).toHaveLength(2);
+  });
+});
+
+describe("reconnect idempotency (F1.5)", () => {
+  // Proves that applying the same vote.cast event id twice never double-counts.
+  it("vote.cast with same event id applied twice — tally counted once, not doubled", () => {
+    const seen = new Set<string>();
+    // First set up a candidate so vote.cast has something to hit.
+    let s = applyEvent(initialState("s1", "CODE"), {
+      ...base({ id: "e-promote" }),
+      type: "restaurant.promoted",
+      candidateId: "c1",
+      promotedAt: "2026-06-21T00:00:00.000Z",
+      restaurant: { id: "r1", name: "Noodle Bar", address: "1 St", cuisineTags: [] },
+    }, seen);
+
+    const voteEv: AppEvent = {
+      ...base({ id: "e-vote" }),
+      type: "vote.cast",
+      candidateId: "c1",
+      userId: "u1",
+      value: 1,
+      tally: { upvotes: 3, downvotes: 1, netScore: 2 },
+    };
+
+    // Apply once (live delivery), then again (replay on reconnect — same event id).
+    s = applyEvent(s, voteEv, seen);
+    s = applyEvent(s, voteEv, seen);
+
+    // Tally must reflect the event payload exactly once, not doubled.
+    expect(s.candidates[0]!.upvotes).toBe(3);
+    expect(s.candidates[0]!.netScore).toBe(2);
+  });
+
+  // Proves that a reconnect replay feeding already-seen events leaves state unchanged.
+  it("replaying already-seen events leaves state unchanged", () => {
+    const seen = new Set<string>();
+    let s = initialState("s1", "CODE");
+
+    const ev1: AppEvent = {
+      ...base({ id: "r1" }),
+      type: "member.joined",
+      member: { id: "m1", userId: "u1", displayName: "Alice", isHost: true, joinedAt: "2026-06-21T00:00:00.000Z" },
+    };
+    const ev2: AppEvent = {
+      ...base({ id: "r2" }),
+      type: "member.joined",
+      member: { id: "m2", userId: "u2", displayName: "Bob", isHost: false, joinedAt: "2026-06-21T00:00:00.000Z" },
+    };
+
+    // Initial live delivery.
+    s = applyEvent(s, ev1, seen);
+    s = applyEvent(s, ev2, seen);
+    expect(s.members).toHaveLength(2);
+
+    const stateBeforeReplay = s;
+
+    // Simulate reconnect replay: same events replayed via eventsSince.
+    // ponytail: this directly exercises the apply path the store uses on reconnect.
+    s = applyEvent(s, ev1, seen);
+    s = applyEvent(s, ev2, seen);
+
+    // State must be referentially identical (applyEvent returns early, no new object).
+    expect(s).toBe(stateBeforeReplay);
     expect(s.members).toHaveLength(2);
   });
 });

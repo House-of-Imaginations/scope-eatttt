@@ -98,6 +98,7 @@ export function createSessionState(input: CreateSessionStateInput): SessionState
     joinCode: normalizeJoinCode(input.generateJoinCode?.() ?? generateJoinCode()),
     status: "lobby",
     hostUserId: input.hostUserId,
+    viewerIsHost: true,
     lat: input.lat,
     lng: input.lng,
     radiusM: input.radiusM ?? DEFAULT_RADIUS_M,

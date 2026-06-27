@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { api } from "$lib/client/orpc";
+  import { storeSessionMember } from "$lib/client/memberSession";
   import { Button } from "@scope/ui";
 
   // ponytail: static cuisine list — fetch from API later if ever needed
@@ -86,6 +87,7 @@
         radiusM: 500,
       });
       joinCode = result.joinCode;
+      storeSessionMember(result.sessionId, result.memberId);
       // Show join code for 1.5 s so host can read it, then navigate.
       // ponytail: simple timeout — no need for a modal/drawer.
       await new Promise((r) => setTimeout(r, 1500));

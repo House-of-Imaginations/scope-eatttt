@@ -52,6 +52,8 @@ export interface SessionRepo<Tx = TransactionContext> {
   getSession(tx: Tx, sessionId: string): Promise<SessionSummary | null>;
   getSessionByJoinCode(tx: Tx, joinCode: string): Promise<SessionSummary | null>;
   listMembers(tx: Tx, sessionId: string): Promise<AddMemberRecord[]>;
+  isHost(tx: Tx, sessionId: string, userId: string): Promise<boolean>;
+  startSwiping(tx: Tx, sessionId: string): Promise<void>;
   insertOutbox(tx: Tx, event: OutboxWrite): Promise<string>;
 }
 

@@ -9,13 +9,13 @@ import type {
 // (matching real oRPC behaviour where callers omit fields that have Zod defaults)
 type CreateIn = { lat: number; lng: number; cuisines?: string[]; radiusM?: number };
 type JoinIn = { joinCode: string; displayName: string };
-type SessionIdIn = { sessionId: string };
-type SwipeIn = { sessionId: string; restaurantId: string; decision: "accept" | "reject"; deckLeft?: number };
-type DeckIn = { sessionId: string; limit?: number };
-type BroadenIn = { sessionId: string; userId: string; stepM?: number };
-type StartPollIn = { sessionId: string; timerMs?: number };
-type VoteIn = { sessionId: string; candidateId: string; value: 1 | -1 };
-type ClosePollIn = { sessionId: string };
+type SessionIdIn = { sessionId: string; memberId?: string };
+type SwipeIn = SessionIdIn & { restaurantId: string; decision: "accept" | "reject"; deckLeft?: number };
+type DeckIn = SessionIdIn & { limit?: number };
+type BroadenIn = SessionIdIn & { userId: string; stepM?: number };
+type StartPollIn = SessionIdIn & { timerMs?: number };
+type VoteIn = SessionIdIn & { candidateId: string; value: 1 | -1 };
+type ClosePollIn = SessionIdIn;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -33,13 +33,6 @@ const FIXTURE_RESTAURANTS: Restaurant[] = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-let _idCounter = 0;
-function nextId(): string {
-  _idCounter += 1;
-  const hex = _idCounter.toString(16).padStart(12, "0");
-  return `00000000-0000-4000-8000-${hex}`;
-}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -76,11 +69,22 @@ interface SessionRow {
 
 // accepts[restaurantId] = Set of userIds that accepted
 type AcceptsMap = Map<string, Set<string>>;
+type VotesMap = Map<string, Map<string, 1 | -1>>;
+
+interface MockState {
+  idCounter: number;
+  sessions: Map<string, SessionRow>;
+  codeIndex: Map<string, string>;
+  accepts: AcceptsMap;
+  votes: VotesMap;
+  nextSwipeUser: Map<string, string>;
+}
 
 export interface MockApi {
   session: {
-    create(input: CreateIn): Promise<{ sessionId: string; joinCode: string }>;
+    create(input: CreateIn): Promise<{ sessionId: string; joinCode: string; memberId: string }>;
     join(input: JoinIn): Promise<{ sessionId: string; memberId: string }>;
+    startSwiping(input: SessionIdIn): Promise<{ status: "swiping" }>;
     state(input: SessionIdIn): Promise<SessionState | null>;
     eventsSince(input: SessionIdIn & { afterEventId?: string }): Promise<AppEvent[]>;
   };
@@ -97,22 +101,153 @@ export interface MockApi {
   };
 }
 
+const MOCK_STATE_KEY = "scope-eatttt:mock-state:v1";
+const MOCK_EVENT_KEY = "scope-eatttt:mock-event:v1";
+const MOCK_EVENT_CHANNEL = "scope-eatttt:mock-events";
+const MOCK_FAIL_POLL_START_KEY = "scope-eatttt:mock-fail-poll-start";
+const MOCK_USER_PREFIX = "scope-eatttt:mock-user:";
+
+let memoryState = emptyState();
+
+function emptyState(): MockState {
+  return {
+    idCounter: 0,
+    sessions: new Map(),
+    codeIndex: new Map(),
+    accepts: new Map(),
+    votes: new Map(),
+    nextSwipeUser: new Map(),
+  };
+}
+
+function hasBrowserStorage(): boolean {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function loadState(): MockState {
+  if (!hasBrowserStorage()) return memoryState;
+  const raw = window.localStorage.getItem(MOCK_STATE_KEY);
+  if (!raw) return emptyState();
+  try {
+    return deserializeState(JSON.parse(raw) as SerializedMockState);
+  } catch {
+    return emptyState();
+  }
+}
+
+function saveState(state: MockState): void {
+  memoryState = state;
+  if (hasBrowserStorage()) {
+    window.localStorage.setItem(MOCK_STATE_KEY, JSON.stringify(serializeState(state)));
+  }
+}
+
+function nextId(state: MockState): string {
+  state.idCounter += 1;
+  const hex = state.idCounter.toString(16).padStart(12, "0");
+  return `00000000-0000-4000-8000-${hex}`;
+}
+
+function getCurrentUserId(state: MockState, sessionId: string, row: SessionRow): string {
+  if (typeof window !== "undefined" && typeof window.sessionStorage !== "undefined") {
+    return window.sessionStorage.getItem(`${MOCK_USER_PREFIX}${sessionId}`) ?? row.hostUserId;
+  }
+  return state.nextSwipeUser.get(sessionId) ?? row.hostUserId;
+}
+
+function getCurrentMemberId(state: MockState, input: SessionIdIn, row: SessionRow): string {
+  if (input.memberId) return input.memberId;
+  const userId = getCurrentUserId(state, input.sessionId, row);
+  return row.members.find((member) => member.userId === userId)?.id ?? row.members[0]!.id;
+}
+
+function setCurrentUserId(state: MockState, sessionId: string, userId: string): void {
+  state.nextSwipeUser.set(sessionId, userId);
+  if (typeof window !== "undefined" && typeof window.sessionStorage !== "undefined") {
+    window.sessionStorage.setItem(`${MOCK_USER_PREFIX}${sessionId}`, userId);
+  }
+}
+
+function shouldRotateUsers(): boolean {
+  return typeof window === "undefined" || typeof window.sessionStorage === "undefined";
+}
+
+function publishMockEvent(event: AppEvent): void {
+  if (!hasBrowserStorage()) return;
+  const packet = JSON.stringify({ id: `${Date.now()}:${Math.random()}`, event });
+  window.localStorage.setItem(MOCK_EVENT_KEY, packet);
+  if (typeof BroadcastChannel !== "undefined") {
+    const channel = new BroadcastChannel(MOCK_EVENT_CHANNEL);
+    channel.postMessage(event);
+    channel.close();
+  }
+}
+
+export function subscribeMockEvents(sessionId: string, onEvent: (event: AppEvent) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const receive = (event: AppEvent) => {
+    if (event.sessionId === sessionId) onEvent(event);
+  };
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== MOCK_EVENT_KEY || !event.newValue) return;
+    try {
+      receive((JSON.parse(event.newValue) as { event: AppEvent }).event);
+    } catch {
+      // ponytail: ignore malformed mock packets; real SSE path owns validation.
+    }
+  };
+  window.addEventListener("storage", onStorage);
+
+  let channel: BroadcastChannel | null = null;
+  if (typeof BroadcastChannel !== "undefined") {
+    channel = new BroadcastChannel(MOCK_EVENT_CHANNEL);
+    channel.onmessage = (message: MessageEvent<AppEvent>) => receive(message.data);
+  }
+
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    channel?.close();
+  };
+}
+
+interface SerializedMockState {
+  idCounter: number;
+  sessions: [string, SessionRow][];
+  codeIndex: [string, string][];
+  accepts: [string, string[]][];
+  votes: [string, [string, 1 | -1][]][];
+  nextSwipeUser: [string, string][];
+}
+
+function serializeState(state: MockState): SerializedMockState {
+  return {
+    idCounter: state.idCounter,
+    sessions: [...state.sessions.entries()],
+    codeIndex: [...state.codeIndex.entries()],
+    accepts: [...state.accepts.entries()].map(([key, value]) => [key, [...value]]),
+    votes: [...state.votes.entries()].map(([key, value]) => [key, [...value.entries()]]),
+    nextSwipeUser: [...state.nextSwipeUser.entries()],
+  };
+}
+
+function deserializeState(raw: SerializedMockState): MockState {
+  return {
+    idCounter: raw.idCounter ?? 0,
+    sessions: new Map(raw.sessions ?? []),
+    codeIndex: new Map(raw.codeIndex ?? []),
+    accepts: new Map((raw.accepts ?? []).map(([key, value]) => [key, new Set(value)])),
+    votes: new Map((raw.votes ?? []).map(([key, value]) => [key, new Map(value)])),
+    nextSwipeUser: new Map(raw.nextSwipeUser ?? []),
+  };
+}
+
 // ── Factory ───────────────────────────────────────────────────────────────────
 
 export function makeMockApi(): MockApi {
-  const sessions = new Map<string, SessionRow>();
-  // joinCode -> sessionId
-  const codeIndex = new Map<string, string>();
-  const accepts: AcceptsMap = new Map();
-  // votes[candidateId] = Map<userId, value>
-  const votes = new Map<string, Map<string, 1 | -1>>();
-
-  // Tracks "current acting user" per session for swipe.decide calls.
-  // On create: host is "user-host". On join: next swipe comes from the new member.
-  const nextSwipeUser = new Map<string, string>();
-
   function getSession(sessionId: string): SessionRow {
-    const s = sessions.get(sessionId);
+    const state = loadState();
+    const s = state.sessions.get(sessionId);
     if (!s) throw new Error(`Session ${sessionId} not found`);
     return s;
   }
@@ -131,11 +266,12 @@ export function makeMockApi(): MockApi {
   return {
     session: {
       async create(input) {
-        const sessionId = nextId();
+        const state = loadState();
+        const sessionId = nextId(state);
         const joinCode = makeJoinCode();
         const hostUserId = "user-host";
         const hostMember: Member = {
-          id: nextId(),
+          id: nextId(state),
           userId: hostUserId,
           displayName: "Host",
           isHost: true,
@@ -156,23 +292,25 @@ export function makeMockApi(): MockApi {
           winnerCandidateId: undefined,
           events: [],
         };
-        sessions.set(sessionId, row);
-        codeIndex.set(joinCode.toUpperCase(), sessionId);
-        nextSwipeUser.set(sessionId, hostUserId);
-        return { sessionId, joinCode };
+        state.sessions.set(sessionId, row);
+        state.codeIndex.set(joinCode.toUpperCase(), sessionId);
+        setCurrentUserId(state, sessionId, hostUserId);
+        saveState(state);
+        return { sessionId, joinCode, memberId: hostMember.id };
       },
 
       async join(input) {
+        const state = loadState();
         const code = input.joinCode.toUpperCase();
         // ponytail: create-on-join for unknown codes — a joiner is usually on a
         // different device than the host, so the session won't exist in this
         // page's in-memory mock. Synthesize a lobby session so /join/<code> works
         // standalone (real backend looks the code up in Postgres).
-        let sessionId = codeIndex.get(code);
+        let sessionId = state.codeIndex.get(code);
         if (!sessionId) {
-          sessionId = nextId();
+          sessionId = nextId(state);
           const hostUserId = "user-host";
-          sessions.set(sessionId, {
+          state.sessions.set(sessionId, {
             id: sessionId,
             joinCode: code,
             status: "lobby",
@@ -181,17 +319,17 @@ export function makeMockApi(): MockApi {
             lng: 0,
             radiusM: 500,
             cuisines: [],
-            members: [{ id: nextId(), userId: hostUserId, displayName: "Host", isHost: true, joinedAt: nowIso() }],
+            members: [{ id: nextId(state), userId: hostUserId, displayName: "Host", isHost: true, joinedAt: nowIso() }],
             candidates: [],
             pollDeadlineAt: undefined,
             winnerCandidateId: undefined,
             events: [],
           });
-          codeIndex.set(code, sessionId);
-          nextSwipeUser.set(sessionId, hostUserId);
+          state.codeIndex.set(code, sessionId);
+          state.nextSwipeUser.set(sessionId, hostUserId);
         }
-        const row = getSession(sessionId);
-        const memberId = nextId();
+        const row = state.sessions.get(sessionId)!;
+        const memberId = nextId(state);
         const userId = `user-${memberId}`;
         const member: Member = {
           id: memberId,
@@ -201,25 +339,53 @@ export function makeMockApi(): MockApi {
           joinedAt: nowIso(),
         };
         row.members.push(member);
-        nextSwipeUser.set(sessionId, userId);
-        row.events.push({
-          id: nextId(),
+        setCurrentUserId(state, sessionId, userId);
+        const event: AppEvent = {
+          id: nextId(state),
           sessionId,
           occurredAt: nowIso(),
           type: "member.joined",
           member,
-        });
+        };
+        row.events.push(event);
+        saveState(state);
+        publishMockEvent(event);
         return { sessionId, memberId };
       },
 
+      async startSwiping(input) {
+        const state = loadState();
+        const row = state.sessions.get(input.sessionId);
+        if (!row) throw new Error(`Session ${input.sessionId} not found`);
+        if (row.status === "lobby") {
+          row.status = "swiping";
+          const event: AppEvent = {
+            id: nextId(state),
+            sessionId: input.sessionId,
+            occurredAt: nowIso(),
+            type: "session.started",
+          };
+          row.events.push(event);
+          saveState(state);
+          publishMockEvent(event);
+        }
+        return { status: "swiping" };
+      },
+
       async state(input) {
-        const row = sessions.get(input.sessionId);
+        const mockState = loadState();
+        const row = mockState.sessions.get(input.sessionId);
         if (!row) return null;
-        const state: SessionState = {
+        const member = input.memberId
+          ? row.members.find((candidate) => candidate.id === input.memberId)
+          : undefined;
+        const userId = member?.userId ?? getCurrentUserId(mockState, input.sessionId, row);
+        const sessionState: SessionState = {
           id: row.id,
           joinCode: row.joinCode,
           status: row.status,
           hostUserId: row.hostUserId,
+          viewerIsHost: row.hostUserId === userId,
           lat: row.lat,
           lng: row.lng,
           radiusM: row.radiusM,
@@ -229,11 +395,12 @@ export function makeMockApi(): MockApi {
           ...(row.pollDeadlineAt !== undefined ? { pollDeadlineAt: row.pollDeadlineAt } : {}),
           ...(row.winnerCandidateId !== undefined ? { winnerCandidateId: row.winnerCandidateId } : {}),
         };
-        return state;
+        return sessionState;
       },
 
       async eventsSince(input) {
-        const row = sessions.get(input.sessionId);
+        const state = loadState();
+        const row = state.sessions.get(input.sessionId);
         if (!row) return [];
         if (!input.afterEventId) return row.events;
         const idx = row.events.findIndex((e) => e.id === input.afterEventId);
@@ -243,24 +410,29 @@ export function makeMockApi(): MockApi {
 
     swipe: {
       async decide(input) {
-        const row = getSession(input.sessionId);
-        const userId = nextSwipeUser.get(input.sessionId) ?? row.hostUserId;
+        const state = loadState();
+        const row = state.sessions.get(input.sessionId);
+        if (!row) throw new Error(`Session ${input.sessionId} not found`);
+        const memberId = getCurrentMemberId(state, input, row);
+        const userId = row.members.find((member) => member.id === memberId)?.userId ?? getCurrentUserId(state, input.sessionId, row);
 
         if (input.decision === "reject") {
           return { promoted: false };
         }
 
-        if (!accepts.has(input.restaurantId)) {
-          accepts.set(input.restaurantId, new Set());
+        const acceptKey = `${input.sessionId}:${input.restaurantId}`;
+        if (!state.accepts.has(acceptKey)) {
+          state.accepts.set(acceptKey, new Set());
         }
-        const acceptSet = accepts.get(input.restaurantId)!;
-        acceptSet.add(userId);
+        const acceptSet = state.accepts.get(acceptKey)!;
+        acceptSet.add(memberId);
 
-        // Rotate to next member for subsequent calls
-        const members = row.members;
-        const curIdx = members.findIndex((m) => m.userId === userId);
-        const nextIdx = (curIdx + 1) % members.length;
-        nextSwipeUser.set(input.sessionId, members[nextIdx]!.userId);
+        if (shouldRotateUsers()) {
+          const members = row.members;
+          const curIdx = members.findIndex((m) => m.userId === userId);
+          const nextIdx = (curIdx + 1) % members.length;
+          state.nextSwipeUser.set(input.sessionId, members[nextIdx]!.userId);
+        }
 
         if (acceptSet.size >= PROMOTE_THRESHOLD) {
           // Already promoted?
@@ -272,7 +444,7 @@ export function makeMockApi(): MockApi {
           }
           const restaurant = getRestaurantById(input.restaurantId);
           const candidate: Candidate = {
-            id: nextId(),
+            id: nextId(state),
             restaurant,
             promotedAt: nowIso(),
             upvotes: 0,
@@ -280,19 +452,23 @@ export function makeMockApi(): MockApi {
             netScore: 0,
           };
           row.candidates.push(candidate);
-          votes.set(candidate.id, new Map());
-          row.events.push({
-            id: nextId(),
+          state.votes.set(candidate.id, new Map());
+          const event: AppEvent = {
+            id: nextId(state),
             sessionId: input.sessionId,
             occurredAt: nowIso(),
             type: "restaurant.promoted",
             candidateId: candidate.id,
             restaurant,
             promotedAt: candidate.promotedAt,
-          });
+          };
+          row.events.push(event);
+          saveState(state);
+          publishMockEvent(event);
           return { promoted: true, candidate };
         }
 
+        saveState(state);
         return { promoted: false };
       },
 
@@ -302,27 +478,42 @@ export function makeMockApi(): MockApi {
       },
 
       async broaden(input) {
-        const row = getSession(input.sessionId);
+        const state = loadState();
+        const row = state.sessions.get(input.sessionId);
+        if (!row) throw new Error(`Session ${input.sessionId} not found`);
         const step = input.stepM ?? 500;
         row.radiusM = row.radiusM + step;
+        saveState(state);
         return { radiusM: row.radiusM, restaurants: FIXTURE_RESTAURANTS };
       },
     },
 
     poll: {
       async start(input) {
-        const row = getSession(input.sessionId);
+        if (typeof window !== "undefined" && typeof window.sessionStorage !== "undefined") {
+          const forcedError = window.sessionStorage.getItem(MOCK_FAIL_POLL_START_KEY);
+          if (forcedError) {
+            window.sessionStorage.removeItem(MOCK_FAIL_POLL_START_KEY);
+            throw new Error(forcedError);
+          }
+        }
+        const state = loadState();
+        const row = state.sessions.get(input.sessionId);
+        if (!row) throw new Error(`Session ${input.sessionId} not found`);
         const timerMs = input.timerMs ?? 300_000;
         const deadlineAt = new Date(Date.now() + timerMs).toISOString();
         row.pollDeadlineAt = deadlineAt;
         row.status = "polling";
-        row.events.push({
-          id: nextId(),
+        const event: AppEvent = {
+          id: nextId(state),
           sessionId: input.sessionId,
           occurredAt: nowIso(),
           type: "poll.opened",
           deadlineAt,
-        });
+        };
+        row.events.push(event);
+        saveState(state);
+        publishMockEvent(event);
         return { deadlineAt };
       },
 
@@ -332,25 +523,28 @@ export function makeMockApi(): MockApi {
       },
 
       async vote(input) {
-        const row = getSession(input.sessionId);
+        const state = loadState();
+        const row = state.sessions.get(input.sessionId);
+        if (!row) throw new Error(`Session ${input.sessionId} not found`);
         const cand = row.candidates.find((c) => c.id === input.candidateId);
         if (!cand) throw new Error(`Candidate ${input.candidateId} not found`);
 
-        const userId = nextSwipeUser.get(input.sessionId) ?? row.hostUserId;
-        if (!votes.has(input.candidateId)) {
-          votes.set(input.candidateId, new Map());
+        const memberId = getCurrentMemberId(state, input, row);
+        const userId = row.members.find((member) => member.id === memberId)?.userId ?? getCurrentUserId(state, input.sessionId, row);
+        if (!state.votes.has(input.candidateId)) {
+          state.votes.set(input.candidateId, new Map());
         }
-        const voteMap = votes.get(input.candidateId)!;
-        const prev = voteMap.get(userId);
+        const voteMap = state.votes.get(input.candidateId)!;
+        const prev = voteMap.get(memberId);
         if (prev === 1) cand.upvotes -= 1;
         else if (prev === -1) cand.downvotes -= 1;
-        voteMap.set(userId, input.value);
+        voteMap.set(memberId, input.value);
         if (input.value === 1) cand.upvotes += 1;
         else cand.downvotes += 1;
         cand.netScore = cand.upvotes - cand.downvotes;
 
-        row.events.push({
-          id: nextId(),
+        const event: AppEvent = {
+          id: nextId(state),
           sessionId: input.sessionId,
           occurredAt: nowIso(),
           type: "vote.cast",
@@ -362,13 +556,18 @@ export function makeMockApi(): MockApi {
             downvotes: cand.downvotes,
             netScore: cand.netScore,
           },
-        });
+        };
+        row.events.push(event);
+        saveState(state);
+        publishMockEvent(event);
 
         return { candidateId: input.candidateId, netScore: cand.netScore };
       },
 
       async close(input) {
-        const row = getSession(input.sessionId);
+        const state = loadState();
+        const row = state.sessions.get(input.sessionId);
+        if (!row) throw new Error(`Session ${input.sessionId} not found`);
         if (row.candidates.length === 0) {
           throw new Error("No candidates to close poll with");
         }
@@ -377,13 +576,16 @@ export function makeMockApi(): MockApi {
         );
         row.winnerCandidateId = winner.id;
         row.status = "decided";
-        row.events.push({
-          id: nextId(),
+        const event: AppEvent = {
+          id: nextId(state),
           sessionId: input.sessionId,
           occurredAt: nowIso(),
           type: "poll.closed",
           winnerCandidateId: winner.id,
-        });
+        };
+        row.events.push(event);
+        saveState(state);
+        publishMockEvent(event);
         return { winnerCandidateId: winner.id };
       },
     },

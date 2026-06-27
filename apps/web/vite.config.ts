@@ -1,22 +1,15 @@
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite";
 
-export default defineConfig(({ mode }) => {
-  // Server code (auth, relay, container) reads config via process.env in
-  // packages/config. Vite only exposes .env to import.meta.env by default, so
-  // load every var (prefix "") from apps/web/.env into process.env for SSR/dev.
-  const env = loadEnv(mode, process.cwd(), "");
-  for (const [key, value] of Object.entries(env)) {
-    process.env[key] ??= value;
-  }
-
-  return {
-    plugins: [tailwindcss(), sveltekit()],
-    test: {
-      // Vitest = unit tests only. Playwright E2E lives in tests/ — keep it out.
-      include: ["src/**/*.{test,spec}.ts"],
-      exclude: ["tests/**", "node_modules/**"],
-    },
-  };
+// Env comes from the root .env, injected into process.env by the `with-env`
+// script (dotenv-cli) before vite runs — single source for web + worker.
+// Vitest scoping lives in vitest.config.ts.
+export default defineConfig({
+  plugins: [tailwindcss(), sveltekit()],
+  // Bundle workspace packages for SSR — they ship raw TS with extensionless
+  // relative imports that Node's strict ESM resolver can't load when externalized.
+  ssr: {
+    noExternal: [/^@scope\//],
+  },
 });

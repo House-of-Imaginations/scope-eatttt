@@ -1,4 +1,5 @@
 import type { AppEvent, Candidate, Restaurant, SessionState } from "@scope/contract";
+import { api } from "./orpc";
 import { createSse, type SseConnection } from "./sse";
 
 /** The restaurant payload carried by a restaurant.promoted event. */
@@ -35,6 +36,7 @@ export function initialState(id: string, joinCode: string): SessionState {
     joinCode,
     status: "lobby",
     hostUserId: "",
+    viewerIsHost: false,
     lat: 0,
     lng: 0,
     radiusM: 0,
@@ -50,9 +52,13 @@ export function initialState(id: string, joinCode: string): SessionState {
  */
 export function reduce(state: SessionState, event: AppEvent): SessionState {
   switch (event.type) {
+    case "session.started":
+      return { ...state, status: "swiping" };
+
     case "member.joined": {
-      // Idempotent: a member is identified by userId, not the event/member id.
-      if (state.members.some((m) => m.userId === event.member.userId)) return state;
+      // Idempotent by member id. A single auth user can have multiple members
+      // in one session when several same-browser tabs are used for local QA.
+      if (state.members.some((m) => m.id === event.member.id)) return state;
       return { ...state, members: [...state.members, event.member] };
     }
 
@@ -138,12 +144,66 @@ export interface SessionStore {
  * connection on connect(), reduces each incoming event into new state, and
  * dedupes by event id while tracking Last-Event-ID for replay on reconnect.
  */
-export function createSessionStore(sessionId: string, joinCode: string): SessionStore {
+// ponytail: two fixed backoff steps, no jitter lib — YAGNI.
+const BACKOFF_MS = [1000, 3000] as const;
+
+export function createSessionStore(
+  sessionId: string,
+  joinCode: string,
+  // ponytail: optional tap so the page can react to events the SessionState
+  // reducer ignores (deck.replenished is per-user swipe inventory, not session
+  // state). Fires for every applied event, including reconnect replay.
+  onAppEvent?: (event: AppEvent) => void,
+): SessionStore {
   let state = $state<SessionState>(initialState(sessionId, joinCode));
   let connected = $state(false);
   let lastEventId = $state<string | null>(null);
   const seenIds = new Set<string>();
   let connection: SseConnection | null = null;
+  // ponytail: tracks attempt index into BACKOFF_MS; caps at last entry.
+  let retryAttempt = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
+
+  function openConnection() {
+    connection = createSse(sessionId, {
+      onOpen: () => {
+        connected = true;
+        retryAttempt = 0;
+        // On reconnect (not first open): replay events since last seen id.
+        if (lastEventId !== null) {
+          void api.session
+            .eventsSince({ sessionId, afterEventId: lastEventId })
+            .then((events) => {
+              for (const ev of events) {
+                if (seenIds.has(ev.id)) continue;
+                state = applyEvent(state, ev, seenIds);
+                lastEventId = ev.id;
+                onAppEvent?.(ev);
+              }
+            });
+        }
+      },
+      onError: () => {
+        connected = false;
+        connection = null;
+        if (stopped) return;
+        // ponytail: simple fixed-step backoff, cap at last entry.
+        const delay = BACKOFF_MS[Math.min(retryAttempt, BACKOFF_MS.length - 1)]!;
+        retryAttempt += 1;
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (!stopped) openConnection();
+        }, delay);
+      },
+      onEvent: (event) => {
+        const fresh = !seenIds.has(event.id);
+        state = applyEvent(state, event, seenIds);
+        lastEventId = event.id;
+        if (fresh) onAppEvent?.(event);
+      },
+    });
+  }
 
   return {
     get state() {
@@ -156,21 +216,16 @@ export function createSessionStore(sessionId: string, joinCode: string): Session
       return lastEventId;
     },
     connect() {
-      if (connection) return;
-      connection = createSse(sessionId, {
-        onOpen: () => {
-          connected = true;
-        },
-        onError: () => {
-          connected = false;
-        },
-        onEvent: (event) => {
-          state = applyEvent(state, event, seenIds);
-          lastEventId = event.id;
-        },
-      });
+      if (connection || retryTimer) return;
+      stopped = false;
+      openConnection();
     },
     disconnect() {
+      stopped = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
       connection?.close();
       connection = null;
       connected = false;

@@ -196,7 +196,7 @@ function userRow(id: string, email: string, name: string) {
 async function applyMigrations(sqlClient: ReturnType<typeof createDatabaseClients>["pooledSql"]): Promise<void> {
   await sqlClient`set client_min_messages to warning`;
 
-  for (const file of ["0000_normal_gateway.sql", "0001_outbox_trigger.sql"]) {
+  for (const file of ["0000_normal_gateway.sql", "0001_outbox_trigger.sql", "0002_member_scoped_activity.sql"]) {
     const migration = readFileSync(resolve(import.meta.dirname, "../../../packages/db/migrations", file), "utf8");
 
     for (const statement of migration.split("--> statement-breakpoint")) {

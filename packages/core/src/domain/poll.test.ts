@@ -55,6 +55,13 @@ class FakeQueue implements JobQueue {
   jobs: Array<{ name: string; data: unknown; opts?: { delayMs?: number; jobId?: string } }> = [];
 
   async enqueue(name: string, data: unknown, opts?: { delayMs?: number; jobId?: string }) {
+    // Mirror BullMQ's real constraint so unit tests catch the colon bug that
+    // only manifests against a live queue (Job.validateOptions: "Custom Id
+    // cannot contain :"). Without this, a fake queue silently accepts an
+    // invalid jobId and the 500 only surfaces in the real E2E.
+    if (opts?.jobId?.includes(":")) {
+      throw new Error("Custom Id cannot contain :");
+    }
     this.jobs.push(opts === undefined ? { name, data } : { name, data, opts });
   }
 }
@@ -81,7 +88,7 @@ describe("poll commands", () => {
     expect(repo.writes).toEqual(["start:tx-1", "outbox:tx-1"]);
     expect(repo.outbox[0]).toMatchObject({ type: "poll.opened", aggregateId: "session-1" });
     expect(queue.jobs).toEqual([
-      { name: "poll.close", data: { sessionId: "session-1" }, opts: { delayMs: 300000, jobId: "poll-close:session-1" } },
+      { name: "poll.close", data: { sessionId: "session-1" }, opts: { delayMs: 300000, jobId: "poll-close-session-1" } },
     ]);
   });
 

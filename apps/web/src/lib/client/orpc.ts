@@ -5,6 +5,7 @@ import type { contract } from "@scope/contract";
 import { PUBLIC_USE_MOCK } from "$env/static/public";
 import { parsePublicEnv } from "@scope/config";
 import { makeMockApi } from "./mockHandler";
+import { ensureAnonSession } from "./auth";
 
 // Fully-typed client inferred from the oRPC contract. Each leaf becomes
 // (input) => Promise<output> — do not hand-roll the mapped type (the contract's
@@ -16,7 +17,27 @@ export type Api = ContractRouterClient<typeof contract>;
 const USE_MOCK = parsePublicEnv({ PUBLIC_USE_MOCK }).useMock;
 
 function buildRealClient(): Api {
-  const link = new RPCLink({ url: "/api/rpc" });
+  // @orpc/client calls new URL(url) internally — must be absolute.
+  // In the browser, build from window.location.origin; in SSR (Node), use a
+  // placeholder origin (the RPCLink is never called server-side).
+  // ponytail: inline origin derivation, no abstraction.
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "http://localhost:5173";
+
+  // ponytail: fetch wrapper that awaits ensureAnonSession() before every RPC
+  // request, killing the race between the layout onMount bootstrap and each
+  // page's own onMount RPC calls. ensureAnonSession() is idempotent and shares
+  // a single in-flight promise, so concurrent calls cost nothing extra.
+  // No-op in mock mode because ensureAnonSession() returns immediately when
+  // PUBLIC_USE_MOCK=1 — the wrapper is harmless in both modes.
+  const authFetch: typeof fetch = async (input, init) => {
+    await ensureAnonSession();
+    return fetch(input, init);
+  };
+
+  const link = new RPCLink({ url: `${origin}/api/rpc`, fetch: authFetch });
   return createORPCClient(link);
 }
 
