@@ -7,6 +7,10 @@ export const SessionIdInput = z.object({
   sessionId: z.string().uuid(),
 });
 
+export const MemberScopedSessionInput = SessionIdInput.extend({
+  memberId: z.string().uuid().optional(),
+});
+
 export const SessionSummarySchema = z.object({
   id: z.string().uuid(),
   joinCode: z.string().min(4).max(12),
@@ -51,4 +55,5 @@ export const JoinSessionInput = z.object({
 export type CreateSessionInput = z.infer<typeof CreateSessionInput>;
 export type JoinSessionInput = z.infer<typeof JoinSessionInput>;
 export type SessionIdInput = z.infer<typeof SessionIdInput>;
+export type MemberScopedSessionInput = z.infer<typeof MemberScopedSessionInput>;
 export type SessionSummary = z.infer<typeof SessionSummarySchema>;

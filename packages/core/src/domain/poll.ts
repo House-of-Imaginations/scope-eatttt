@@ -19,7 +19,7 @@ export interface PollRepo<Tx = TransactionContext> {
   withTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
   isHost(tx: Tx, sessionId: string, userId: string): Promise<boolean>;
   startPoll(tx: Tx, sessionId: string, deadlineAt: string): Promise<void>;
-  upsertVote(tx: Tx, input: { sessionId: string; candidateId: string; userId: string; value: 1 | -1 }): Promise<void>;
+  upsertVote(tx: Tx, input: { sessionId: string; candidateId: string; userId: string; memberId: string; value: 1 | -1 }): Promise<void>;
   candidateBelongsToSession(tx: Tx, sessionId: string, candidateId: string): Promise<boolean>;
   tally(tx: Tx, candidateId: string): Promise<Tally>;
   listCandidatesWithTally(tx: Tx, sessionId: string): Promise<CandidateTally[]>;
@@ -71,12 +71,13 @@ export async function castVote<Tx>(
   deps: PollDeps<Tx>,
   input: VoteInput,
   userId: string,
+  memberId = userId,
 ): Promise<Tally> {
   return deps.repo.withTx(async (tx) => {
     if (!(await deps.repo.candidateBelongsToSession(tx, input.sessionId, input.candidateId))) {
       throw new Error("Candidate does not belong to this session");
     }
-    await deps.repo.upsertVote(tx, { ...input, userId });
+    await deps.repo.upsertVote(tx, { ...input, userId, memberId });
     const tally = await deps.repo.tally(tx, input.candidateId);
     await deps.repo.insertOutbox(tx, voteCastEvent(input.sessionId, input.candidateId, userId, input.value, tally));
     return tally;
