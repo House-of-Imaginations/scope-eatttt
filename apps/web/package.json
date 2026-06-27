@@ -20,6 +20,7 @@
     "@scope/contract": "workspace:^",
     "@scope/core": "workspace:^",
     "@scope/db": "workspace:*",
+    "@scope/logging": "workspace:*",
     "@scope/tokens": "workspace:*",
     "@scope/ui": "workspace:*",
     "@sveltejs/adapter-node": "^5.5.4",

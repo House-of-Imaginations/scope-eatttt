@@ -3,6 +3,7 @@ import { loadEnv, type Env } from "@scope/config";
 import { FakePlaces, type PlacesFetchRepo, type PlacesProvider } from "@scope/core";
 import { createDatabaseClients } from "@scope/db";
 import { DrizzleSessionRepo, GooglePlaces, RedisCache } from "@scope/adapters";
+import { configureBackendLogging, getAppLogger } from "@scope/logging";
 import {
   runPlacesFetchJob,
   type PlacesFetchDeps,
@@ -21,6 +22,8 @@ type DrizzleTx = Parameters<DrizzleSessionRepo["getSession"]>[0];
 type ScopeJobResult = PlacesFetchJobResult | PollCloseJobResult;
 
 type WorkerRepo<Tx> = PollCloseRepo<Tx> & PlacesFetchRepo<Tx>;
+
+configureBackendLogging({ service: "worker" });
 
 export interface WorkerDeps<Tx> extends Omit<PollCloseDeps<Tx>, "repo">, Omit<PlacesFetchDeps<Tx>, "repo"> {
   repo: WorkerRepo<Tx>;
@@ -74,7 +77,7 @@ function buildPlaces(env: Env, cache: RedisCache): PlacesProvider {
 }
 
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
-  console.log("Starting worker from file:", process.argv[1]);
+  getAppLogger(["startup"]).info("Starting worker from file: {file}", { file: process.argv[1] });
   createScopeWorker();
-  console.log("Worker started");
+  getAppLogger(["startup"]).info("Worker started");
 }

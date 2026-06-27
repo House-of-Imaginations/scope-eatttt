@@ -1,6 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import "../styles/global.css";
+  import { configureFrontendLogging, getAppLogger } from "@scope/logging/browser";
   import { ensureAnonSession } from "$lib/client/auth";
 
   let { children } = $props();
@@ -11,8 +12,9 @@
   // no longer needs to complete before page RPCs fire. Kept here so navigation
   // to a non-RPC page (e.g. /join) still warms the cookie early.
   onMount(() => {
+    configureFrontendLogging({ enabled: import.meta.env.MODE !== "production" });
     ensureAnonSession().catch((err) => {
-      console.error("[layout] ensureAnonSession failed:", err);
+      getAppLogger(["layout"]).error("ensureAnonSession failed", { error: err });
     });
   });
 </script>
