@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { AppEventSchema } from "../events";
+import { contract } from "../router";
+import { AbsorbGuestInput } from "./auth";
+import { DashboardSessionSummary } from "./dashboard";
 import { ClosePollInput, StartPollInput, VoteInput } from "./poll";
 import { CreateSessionInput, JoinSessionInput, SessionIdInput, SessionSummarySchema } from "./session";
 import { BroadenInput, SwipeInput } from "./swipe";
@@ -11,8 +14,17 @@ describe("contract schemas", () => {
         lat: -37.8136,
         lng: 144.9631,
         cuisines: ["thai", "japanese"],
+        title: "Friday lunch",
+        pollDurationSec: 180,
+        promoteThreshold: 3,
       }),
-    ).toMatchObject({ radiusM: 500 });
+    ).toMatchObject({ radiusM: 500, title: "Friday lunch", pollDurationSec: 180, promoteThreshold: 3 });
+
+    expect(() => CreateSessionInput.parse({
+      lat: -37.8136,
+      lng: 144.9631,
+      promoteThreshold: 99,
+    })).toThrow();
 
     expect(JoinSessionInput.parse({ joinCode: "abc123", displayName: "Ada" })).toEqual({
       joinCode: "ABC123",
@@ -20,6 +32,11 @@ describe("contract schemas", () => {
     });
 
     expect(SessionIdInput.safeParse({ sessionId: "not-a-uuid" }).success).toBe(false);
+  });
+
+  it("validates absorb guest input", () => {
+    expect(() => AbsorbGuestInput.parse({ anonUserId: "" })).toThrow();
+    expect(AbsorbGuestInput.parse({ anonUserId: "anon-1" })).toEqual({ anonUserId: "anon-1" });
   });
 
   it("validates swipe and poll inputs", () => {
@@ -57,13 +74,31 @@ describe("contract schemas", () => {
     ).toBe("restaurant.promoted");
   });
 
-  it("validates session summary output", () => {
+  it("validates dashboard session summary output", () => {
     expect(
-      SessionSummarySchema.parse({
+      DashboardSessionSummary.parse({
+        id: crypto.randomUUID(),
+        joinCode: "JOIN01",
+        title: "Friday lunch",
+        status: "swiping",
+        winnerName: null,
+        members: [],
+        candidates: [],
+      }),
+    ).toMatchObject({ status: "swiping", title: "Friday lunch", winnerName: null });
+
+    expect(() =>
+      DashboardSessionSummary.parse({
         id: crypto.randomUUID(),
         joinCode: "JOIN01",
         status: "swiping",
       }),
-    ).toMatchObject({ status: "swiping" });
+    ).toThrow();
+  });
+
+  it("exposes dashboard and auth router groups", () => {
+    expect(contract.dashboard.history).toBeDefined();
+    expect(contract.dashboard.session).toBeDefined();
+    expect(contract.auth.absorbGuest).toBeDefined();
   });
 });
