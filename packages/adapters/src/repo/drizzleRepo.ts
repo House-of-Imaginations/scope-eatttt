@@ -13,8 +13,8 @@ import type {
   Tally,
   UserLinkRepo,
 } from "@scope/core";
-import type { Candidate, Restaurant } from "@scope/contract";
-import { lunchSession, outboxEvent, pollCandidate, restaurantCache, sessionMember, swipe, vote } from "@scope/db";
+import type { Candidate, DashboardHistoryItem, DashboardSessionSummary, Restaurant } from "@scope/contract";
+import { lunchSession, outboxEvent, pollCandidate, restaurantCache, sessionMember, swipe, user, vote } from "@scope/db";
 
 type Executor = {
   transaction<T>(fn: (tx: TransactionExecutor) => Promise<T>): Promise<T>;
@@ -29,14 +29,18 @@ type TransactionExecutor = {
 type SessionRow = {
   id: string;
   joinCode: string;
+  title?: string | null;
   hostUserId?: string;
   status?: SessionSummary["status"];
   lat?: number;
   lng?: number;
   radiusM?: number;
   cuisines?: string[];
+  pollDurationSec?: number;
+  promoteThreshold?: number;
   pollDeadlineAt?: Date | string | null;
   winnerCandidateId?: string | null;
+  createdAt?: Date | string;
 };
 
 type MemberRow = {
@@ -44,6 +48,7 @@ type MemberRow = {
   sessionId: string;
   userId: string;
   displayName: string;
+  image?: string | null;
   isHost: boolean;
   radiusM?: number;
   joinedAt: Date | string;
@@ -59,6 +64,19 @@ type CountRow = {
 
 type HostRow = {
   isHost: boolean;
+};
+
+type AnonymousUserRow = {
+  isAnonymous: boolean | null;
+};
+
+type DashboardHistoryRow = {
+  id: string;
+  title: string | null;
+  joinCode: string;
+  status: DashboardHistoryItem["status"];
+  createdAt: Date | string;
+  winnerName: string | null;
 };
 
 type CandidateTallyRow = {
@@ -90,14 +108,18 @@ type RestaurantRow = {
 const sessionSummaryColumns = {
   id: lunchSession.id,
   joinCode: lunchSession.joinCode,
+  title: lunchSession.title,
   hostUserId: lunchSession.hostUserId,
   status: lunchSession.status,
   lat: lunchSession.lat,
   lng: lunchSession.lng,
   radiusM: lunchSession.radiusM,
   cuisines: lunchSession.cuisines,
+  pollDurationSec: lunchSession.pollDurationSec,
+  promoteThreshold: lunchSession.promoteThreshold,
   pollDeadlineAt: lunchSession.pollDeadlineAt,
   winnerCandidateId: lunchSession.winnerCandidateId,
+  createdAt: lunchSession.createdAt,
 };
 
 const restaurantColumns = {
@@ -131,11 +153,14 @@ export class DrizzleSessionRepo
       .values({
         id: input.id,
         joinCode: input.joinCode,
+        title: input.title,
         hostUserId: input.hostUserId,
         lat: input.lat,
         lng: input.lng,
         radiusM: input.radiusM,
         cuisines: input.cuisines,
+        pollDurationSec: input.pollDurationSec,
+        promoteThreshold: input.promoteThreshold,
         createdAt: new Date(input.createdAt),
         updatedAt: new Date(input.createdAt),
       });
@@ -170,10 +195,62 @@ export class DrizzleSessionRepo
   }
 
   async listMembers(tx: TransactionExecutor, sessionId: string): Promise<AddMemberRecord[]> {
-    const rows = await queryRows<MemberRow>(select(tx)
+    const rows = await queryRows<MemberRow>(select(tx, {
+      id: sessionMember.id,
+      sessionId: sessionMember.sessionId,
+      userId: sessionMember.userId,
+      displayName: sessionMember.displayName,
+      image: user.image,
+      isHost: sessionMember.isHost,
+      radiusM: sessionMember.radiusM,
+      joinedAt: sessionMember.joinedAt,
+    })
       .from(sessionMember)
+      .leftJoin(user, eq(user.id, sessionMember.userId))
       .where(eq(sessionMember.sessionId, sessionId)));
     return rows.map(memberRecord);
+  }
+
+  async listSessionsForUser(tx: TransactionExecutor, userId: string): Promise<DashboardHistoryItem[]> {
+    const rows = await queryRows<DashboardHistoryRow>(select(tx, {
+      id: lunchSession.id,
+      title: lunchSession.title,
+      joinCode: lunchSession.joinCode,
+      status: lunchSession.status,
+      createdAt: lunchSession.createdAt,
+      winnerName: restaurantCache.name,
+    })
+      .from(lunchSession)
+      .leftJoin(sessionMember, eq(sessionMember.sessionId, lunchSession.id))
+      .leftJoin(pollCandidate, eq(pollCandidate.id, lunchSession.winnerCandidateId))
+      .leftJoin(restaurantCache, eq(restaurantCache.id, pollCandidate.restaurantId))
+      .where(eq(sessionMember.userId, userId))
+      .orderBy(desc(lunchSession.createdAt)));
+    return uniqueById(rows.map(dashboardHistoryItem));
+  }
+
+  async getSessionSummary(tx: TransactionExecutor, sessionId: string, userId: string): Promise<DashboardSessionSummary | null> {
+    const session = await this.getSession(tx, sessionId);
+    if (!session) {
+      return null;
+    }
+
+    const members = await this.listMembers(tx, sessionId);
+    if (!members.some((member) => member.userId === userId)) {
+      return null;
+    }
+
+    const candidates = await this.listCandidateResults(tx, sessionId);
+    const winnerName = candidates.find((candidate) => candidate.id === session.winnerCandidateId)?.restaurant.name ?? null;
+    return {
+      id: session.id,
+      title: session.title ?? null,
+      joinCode: session.joinCode,
+      status: session.status ?? "lobby",
+      winnerName,
+      candidates,
+      members,
+    };
   }
 
   async insertOutbox(tx: TransactionExecutor, event: OutboxWrite): Promise<string> {
@@ -397,6 +474,14 @@ export class DrizzleSessionRepo
         .where(eq(vote.userId, anonymousUserId));
     });
   }
+
+  async isAnonymousUser(userId: string): Promise<boolean> {
+    const row = await firstRow<AnonymousUserRow>(select(this.db, { isAnonymous: user.isAnonymous })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1));
+    return row?.isAnonymous === true;
+  }
 }
 
 function insert(tx: TransactionExecutor, table: unknown): InsertBuilder {
@@ -465,12 +550,15 @@ function sessionSummary(row: SessionRow): SessionSummary {
   return {
     id: row.id,
     joinCode: row.joinCode,
+    ...(row.title === undefined ? {} : { title: row.title }),
     ...(row.hostUserId === undefined ? {} : { hostUserId: row.hostUserId }),
     ...(row.status === undefined ? {} : { status: row.status }),
     ...(row.lat === undefined ? {} : { lat: row.lat }),
     ...(row.lng === undefined ? {} : { lng: row.lng }),
     ...(row.radiusM === undefined ? {} : { radiusM: row.radiusM }),
     ...(row.cuisines === undefined ? {} : { cuisines: row.cuisines }),
+    ...(row.pollDurationSec === undefined ? {} : { pollDurationSec: row.pollDurationSec }),
+    ...(row.promoteThreshold === undefined ? {} : { promoteThreshold: row.promoteThreshold }),
     ...(row.pollDeadlineAt === undefined || row.pollDeadlineAt === null ? {} : { pollDeadlineAt: toIso(row.pollDeadlineAt) }),
     ...(row.winnerCandidateId === undefined || row.winnerCandidateId === null ? {} : { winnerCandidateId: row.winnerCandidateId }),
   };
@@ -482,10 +570,26 @@ function memberRecord(row: MemberRow): AddMemberRecord {
     sessionId: row.sessionId,
     userId: row.userId,
     displayName: row.displayName,
+    ...(row.image === undefined || row.image === null ? {} : { image: row.image }),
     isHost: row.isHost,
     ...(row.radiusM === undefined ? {} : { radiusM: row.radiusM }),
     joinedAt: toIso(row.joinedAt),
   };
+}
+
+function dashboardHistoryItem(row: DashboardHistoryRow): DashboardHistoryItem {
+  return {
+    id: row.id,
+    title: row.title,
+    joinCode: row.joinCode,
+    status: row.status,
+    createdAt: toIso(row.createdAt),
+    winnerName: row.winnerName,
+  };
+}
+
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  return [...new Map(items.map((item) => [item.id, item])).values()];
 }
 
 function candidateTally(row: CandidateTallyRow): CandidateTally {

@@ -9,6 +9,7 @@ export interface BetterAuthLike {
 export interface BetterAuthSessionUser {
   id: string;
   email?: string | null | undefined;
+  image?: string | null | undefined;
   name?: string | null | undefined;
   displayName?: string | null | undefined;
   isAnonymous?: boolean | null | undefined;
@@ -27,6 +28,7 @@ export class BetterAuthProvider implements AuthProvider {
       id: session.user.id,
       email: session.user.email ?? null,
       displayName: session.user.displayName ?? session.user.name ?? "Guest",
+      image: session.user.image ?? null,
       isAnonymous: session.user.isAnonymous ?? false,
     };
   }
