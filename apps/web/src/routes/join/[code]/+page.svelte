@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import { storeSessionMember } from "$lib/client/memberSession";
   import { api } from "$lib/client/orpc";
   import { Button } from "@scope/ui";
 
@@ -24,6 +25,7 @@
         joinCode: code,
         displayName: displayName.trim(),
       });
+      storeSessionMember(result.sessionId, result.memberId);
       await goto(`/s/${result.sessionId}`);
     } catch (err) {
       error =

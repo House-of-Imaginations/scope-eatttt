@@ -50,7 +50,7 @@ const LOW_THRESHOLD = 2;
  * are `$derived`. Logic is framework-pure (no DOM) so it is testable under
  * Vitest against the same mock transport the app uses.
  */
-export function createDeck(sessionId: string): Deck {
+export function createDeck(sessionId: string, memberId?: string): Deck {
   let cards = $state<Restaurant[]>([]);
   const current = $derived(cards[0]);
   const isLow = $derived(cards.length <= LOW_THRESHOLD);
@@ -67,8 +67,16 @@ export function createDeck(sessionId: string): Deck {
     },
 
     async load() {
-      const fetched = await api.swipe.deck({ sessionId });
-      cards = fetched.map(toRestaurant);
+      const fetched = await api.swipe.deck(memberId === undefined ? { sessionId } : { sessionId, memberId });
+      const loaded = fetched.map(toRestaurant);
+      // Merge, don't clobber. A concurrent deck.replenished event (the worker
+      // finishing places.fetch) may have appended cards while this fetch was in
+      // flight; replacing would drop them — and a load() that raced ahead of the
+      // worker resolves empty, so a plain replace would also wipe a deck that
+      // replenished just filled. Dedupe by id; appending is order-stable.
+      const seen = new Set(cards.map((c) => c.id));
+      const fresh = loaded.filter((r) => !seen.has(r.id));
+      if (fresh.length > 0) cards = [...cards, ...fresh];
     },
 
     async decide(decision) {
@@ -76,6 +84,7 @@ export function createDeck(sessionId: string): Deck {
       if (!card) return undefined;
       const result = await api.swipe.decide({
         sessionId,
+        ...(memberId === undefined ? {} : { memberId }),
         restaurantId: card.id,
         decision,
         deckLeft: cards.length,

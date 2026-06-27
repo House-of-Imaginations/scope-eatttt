@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
+  import { memberInput, readSessionMember } from "$lib/client/memberSession";
   import { api } from "$lib/client/orpc";
   import { createSessionStore } from "$lib/client/sessionStore.svelte";
   import { createDeck } from "$lib/client/deck.svelte";
+  import { getAppLogger } from "@scope/logging/browser";
   import {
     Button,
     CandidateRow,
@@ -58,12 +60,17 @@
   // (F1.6) drives live updates with zero screen changes.
   let store = $state<ReturnType<typeof createSessionStore> | null>(null);
   let deck = $state<ReturnType<typeof createDeck> | null>(null);
+  let memberId = $state<string | undefined>(undefined);
 
   // Authoritative snapshot. Seeded on mount, refreshed after host actions.
   let session = $state<Snapshot | null>(null);
+  let loadError = $state<string | null>(null);
+  let origin = $state("");
+  let copiedInvite = $state(false);
 
   const isHost = $derived(session?.viewerIsHost ?? false);
   const status = $derived(session?.status ?? "lobby");
+  const inviteUrl = $derived(session && origin ? `${origin}/join/${session.joinCode}` : "");
 
   // The promoted candidate chosen as the winner, for the decided view.
   const winner = $derived(
@@ -90,7 +97,8 @@
     let lastErr: unknown;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
-        session = await api.session.state({ sessionId });
+        session = await api.session.state(memberInput(sessionId, memberId));
+        loadError = session ? null : "This lunch session could not be found.";
         return;
       } catch (err) {
         lastErr = err;
@@ -99,20 +107,45 @@
         }
       }
     }
-    console.error("[session] refresh failed after retries:", lastErr);
+    getAppLogger(["session"]).error("Refresh failed after retries", { error: lastErr });
+    loadError = lastErr instanceof Error ? lastErr.message : "Could not load this lunch session.";
   }
 
   onMount(() => {
+    origin = window.location.origin;
+    memberId = readSessionMember(sessionId);
     const code = session?.joinCode ?? "";
-    const s = createSessionStore(sessionId, code);
+    deck = createDeck(sessionId, memberId);
+    // Feed deck.replenished events (worker finished caching, or a broaden) into
+    // this client's deck. The SessionState reducer ignores them, so the page
+    // taps them here. This is what self-heals a deck that loaded empty because
+    // it raced ahead of the worker's places.fetch.
+    const s = createSessionStore(sessionId, code, (event) => {
+      if (event.type === "deck.replenished") {
+        deck?.appendReplenished(event.restaurants);
+      }
+    });
     store = s;
     s.connect();
-    deck = createDeck(sessionId);
     void refresh();
     return () => {
       s.disconnect();
       if (toastTimer) clearTimeout(toastTimer);
     };
+  });
+
+  // Load this client's deck once the session is swiping — uniformly for the
+  // host (who clicks Start swiping) and every member (who arrives here via the
+  // session.started SSE transition, with no control to trigger a load). Guarded
+  // so it fires once per session. If this initial load races ahead of the
+  // worker's places.fetch and returns empty, the deck.replenished tap in
+  // onMount refills it when the worker finishes.
+  let deckLoadStarted = false;
+  $effect(() => {
+    if (status === "swiping" && deck && !deckLoadStarted) {
+      deckLoadStarted = true;
+      void deck.load();
+    }
   });
 
   // ponytail: refresh the authoritative oRPC snapshot when SSE delivers events
@@ -140,9 +173,10 @@
   }
 
   async function startSwiping() {
-    await api.session.startSwiping({ sessionId });
+    await api.session.startSwiping(memberInput(sessionId, memberId));
     await refresh();
-    await deck?.load();
+    // Deck loading is owned by the status-swiping $effect below, so it happens
+    // uniformly for the host and every member (who arrive via SSE, not here).
   }
 
   async function onSwipe(decision: "accept" | "reject") {
@@ -156,7 +190,7 @@
   async function openPoll() {
     try {
       actionError = null;
-      await api.poll.start({ sessionId });
+      await api.poll.start(memberInput(sessionId, memberId));
       await refresh();
     } catch (err) {
       actionError = err instanceof Error ? err.message : "Failed to open poll.";
@@ -168,7 +202,7 @@
       actionError = null;
       // ponytail: apply optimistic state AFTER the RPC succeeds — if it throws,
       // myVotes is never updated so the button stays in its prior state.
-      await api.poll.vote({ sessionId, candidateId, value });
+      await api.poll.vote({ ...memberInput(sessionId, memberId), candidateId, value });
       myVotes = { ...myVotes, [candidateId]: value };
       await refresh();
     } catch (err) {
@@ -179,10 +213,23 @@
   async function endPoll() {
     try {
       actionError = null;
-      await api.poll.close({ sessionId });
+      await api.poll.close(memberInput(sessionId, memberId));
       await refresh();
     } catch (err) {
       actionError = err instanceof Error ? err.message : "Failed to end poll.";
+    }
+  }
+
+  async function copyInvite() {
+    if (!inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      copiedInvite = true;
+      setTimeout(() => {
+        copiedInvite = false;
+      }, 1600);
+    } catch {
+      actionError = "Could not copy the invite link.";
     }
   }
 </script>
@@ -199,7 +246,12 @@
       <button class="action-error-dismiss" onclick={() => (actionError = null)} aria-label="Dismiss">✕</button>
     </div>
   {/if}
-  {#if !session}
+  {#if !session && loadError}
+    <section class="panel">
+      <h1 class="heading">Can't load this lunch</h1>
+      <p class="subtext">{loadError}</p>
+    </section>
+  {:else if !session}
     <p class="loading">Loading lunch…</p>
   {:else if status === "lobby"}
     <section class="panel lobby">
@@ -208,6 +260,16 @@
 
       <div class="code-banner" data-testid="lobby-join-code">
         {session.joinCode}
+      </div>
+
+      <div class="invite-card">
+        <label class="section-label" for="invite-link">Invite link</label>
+        <div class="invite-row">
+          <input id="invite-link" class="invite-input" value={inviteUrl} readonly data-testid="invite-link" />
+          <button class="copy-button" type="button" onclick={copyInvite} data-testid="copy-invite">
+            {copiedInvite ? "Copied" : "Copy"}
+          </button>
+        </div>
       </div>
 
       <h2 class="section-label">Who's in</h2>
@@ -394,6 +456,43 @@
     box-shadow: var(--shadow-block);
     padding: 20px 16px;
     margin-bottom: 24px;
+  }
+
+  .invite-card {
+    margin-bottom: 24px;
+  }
+
+  .invite-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .invite-input {
+    min-width: 0;
+    width: 100%;
+    color: var(--color-ink);
+    background-color: var(--color-surface-card);
+    border: 3px solid var(--color-stroke);
+    border-radius: var(--radius-lg);
+    padding: 12px 14px;
+    font-family: var(--font-body);
+    font-size: 14px;
+  }
+
+  .copy-button {
+    min-height: 46px;
+    cursor: pointer;
+    color: var(--color-ink);
+    background-color: var(--color-banana-yellow);
+    border: 3px solid var(--color-stroke);
+    border-radius: var(--radius-full);
+    box-shadow: var(--shadow-block);
+    padding: 0 18px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 14px;
   }
 
   .section-label {
