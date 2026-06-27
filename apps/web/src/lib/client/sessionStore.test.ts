@@ -59,15 +59,20 @@ describe("reduce", () => {
     expect(s.winnerCandidateId).toBe("c1");
   });
 
-  it("is idempotent for a duplicate member (same userId)", () => {
+  it("keeps same-user members separate but ignores the same member twice", () => {
     const ev: AppEvent = {
       ...base(),
       type: "member.joined",
       member: { id: "m1", userId: "u1", displayName: "A", isHost: true, joinedAt: "2026-06-21T00:00:00.000Z" },
     };
     let s = reduce(initialState("s1", "CODE"), ev);
-    s = reduce(s, ev);
-    expect(s.members).toHaveLength(1);
+    s = reduce(s, {
+      ...ev,
+      id: "00000000-0000-0000-0000-000000000099",
+      member: { ...ev.member, id: "m2", displayName: "B", isHost: false },
+    });
+    s = reduce(s, { ...ev, id: "00000000-0000-0000-0000-000000000098" });
+    expect(s.members.map((member) => member.displayName)).toEqual(["A", "B"]);
   });
 
   it("does not mutate the input state (purity)", () => {

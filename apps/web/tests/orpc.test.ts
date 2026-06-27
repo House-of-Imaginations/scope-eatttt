@@ -32,7 +32,7 @@ describe("oRPC handlers", () => {
     const created = await hostClient.session.create({ lat: -37.8136, lng: 144.9631, cuisines: ["thai"], radiusM: 500 });
     const joined = await guestClient.session.join({ joinCode: created.joinCode, displayName: "Grace" });
 
-    expect(created).toEqual({ sessionId, joinCode: "JOIN01" });
+    expect(created).toEqual({ sessionId, joinCode: "JOIN01", memberId: hostMemberId });
     expect(joined).toEqual({ sessionId, memberId: guestMemberId });
     expect(repo.members.map((member) => member.userId)).toEqual(["host-user", "guest-user"]);
     expect(queue.enqueued).toEqual([
@@ -40,27 +40,27 @@ describe("oRPC handlers", () => {
         name: "places.fetch",
         data: {
           sessionId,
-          userId: "host-user",
+          userId: hostMemberId,
           lat: -37.8136,
           lng: 144.9631,
           radiusM: 500,
           cuisines: ["thai"],
           limit: 5,
         },
-        opts: { jobId: `places-fetch-${sessionId}-host-user-500` },
+        opts: { jobId: `places-fetch-${sessionId}-${hostMemberId}-500` },
       },
       {
         name: "places.fetch",
         data: {
           sessionId,
-          userId: "guest-user",
+          userId: guestMemberId,
           lat: -37.8136,
           lng: 144.9631,
           radiusM: 500,
           cuisines: ["thai"],
           limit: 5,
         },
-        opts: { jobId: `places-fetch-${sessionId}-guest-user-500` },
+        opts: { jobId: `places-fetch-${sessionId}-${guestMemberId}-500` },
       },
     ]);
   });
@@ -100,14 +100,14 @@ describe("oRPC handlers", () => {
         name: "places.fetch",
         data: {
           sessionId,
-          userId: "guest-user",
+          userId: guestMemberId,
           lat: -37.8136,
           lng: 144.9631,
           radiusM: 1000,
           cuisines: ["thai"],
           limit: 5,
         },
-        opts: { jobId: `places-fetch-${sessionId}-guest-user-1000` },
+        opts: { jobId: `places-fetch-${sessionId}-${guestMemberId}-1000` },
       },
     ]);
   });
@@ -130,8 +130,46 @@ describe("oRPC handlers", () => {
 
     expect(queue.enqueued[0]).toMatchObject({
       name: "places.fetch",
-      data: { sessionId, userId: "guest-user", lat: -37.8136, lng: 144.9631, radiusM: 1000, cuisines: ["thai"], limit: 5 },
-      opts: { jobId: `places-fetch-${sessionId}-guest-user-1000` },
+      data: { sessionId, userId: guestMemberId, lat: -37.8136, lng: 144.9631, radiusM: 1000, cuisines: ["thai"], limit: 5 },
+      opts: { jobId: `places-fetch-${sessionId}-${guestMemberId}-1000` },
+    });
+  });
+
+  it("treats same-auth joins as separate members for swiping", async () => {
+    const repo = new MemorySessionRepo();
+    repo.restaurants.set("place-1", restaurant);
+    const aliceMemberId = "00000000-0000-4000-8000-000000000103";
+    const router = createORPCRouter({
+      container: testContainer(repo),
+      ids: {
+        sessionId: () => sessionId,
+        memberId: sequence([hostMemberId, guestMemberId, aliceMemberId]),
+        joinCode: () => "JOIN01",
+      },
+      now: () => "2026-06-20T01:02:03.000Z",
+      streak: new MemoryStreak(),
+    });
+    const client = createRouterClient(router, { context: context(hostUser) });
+
+    const created = await client.session.create({ lat: -37.8136, lng: 144.9631, cuisines: ["thai"], radiusM: 500 });
+    const simon = await client.session.join({ joinCode: created.joinCode, displayName: "Simon" });
+    const alice = await client.session.join({ joinCode: created.joinCode, displayName: "Alice" });
+
+    await expect(client.session.state({ sessionId, memberId: alice.memberId })).resolves.toMatchObject({
+      viewerIsHost: false,
+      members: [
+        { displayName: "Ada" },
+        { displayName: "Simon" },
+        { displayName: "Alice" },
+      ],
+    });
+
+    await expect(client.swipe.decide({ sessionId, memberId: simon.memberId, restaurantId: "place-1", decision: "accept" })).resolves.toEqual({
+      promoted: false,
+    });
+    await expect(client.swipe.decide({ sessionId, memberId: alice.memberId, restaurantId: "place-1", decision: "accept" })).resolves.toMatchObject({
+      promoted: true,
+      candidate: { restaurant },
     });
   });
 
@@ -333,7 +371,7 @@ class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
   readonly members: AddMemberRecord[] = [];
   readonly outbox: OutboxWrite[] = [];
   readonly restaurants = new Map<string, Restaurant>();
-  readonly swipes: Array<{ sessionId: string; userId: string; restaurantId: string; decision: Decision }> = [];
+  readonly swipes: Array<{ sessionId: string; userId: string; memberId: string; restaurantId: string; decision: Decision }> = [];
   readonly candidates: Array<{ id: string; sessionId: string; restaurantId: string }> = [];
 
   async withTx<T>(fn: (tx: MemorySessionRepo) => Promise<T>): Promise<T> {
@@ -357,9 +395,7 @@ class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
   }
 
   async addMember(_tx: MemorySessionRepo, input: AddMemberRecord): Promise<void> {
-    if (!this.members.some((member) => member.sessionId === input.sessionId && member.userId === input.userId)) {
-      this.members.push(input);
-    }
+    this.members.push(input);
   }
 
   async getSession(_tx: MemorySessionRepo, sessionId: string): Promise<SessionSummary | null> {
@@ -394,16 +430,16 @@ class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
     return this.restaurants.get(restaurantId) ?? null;
   }
 
-  async listDeckRestaurants(_tx: MemorySessionRepo, _sessionId: string, userId: string, limit: number): Promise<Restaurant[]> {
-    const swiped = new Set(this.swipes.filter((swipe) => swipe.userId === userId).map((swipe) => swipe.restaurantId));
+  async listDeckRestaurants(_tx: MemorySessionRepo, _sessionId: string, memberId: string, limit: number): Promise<Restaurant[]> {
+    const swiped = new Set(this.swipes.filter((swipe) => swipe.memberId === memberId).map((swipe) => swipe.restaurantId));
     return [...this.restaurants.values()].filter((candidate) => !swiped.has(candidate.id)).slice(0, limit);
   }
 
   async recordSwipe(
     _tx: MemorySessionRepo,
-    input: { sessionId: string; userId: string; restaurantId: string; decision: Decision },
+    input: { sessionId: string; userId: string; memberId: string; restaurantId: string; decision: Decision },
   ): Promise<{ created: boolean }> {
-    if (this.swipes.some((swipe) => swipe.sessionId === input.sessionId && swipe.userId === input.userId && swipe.restaurantId === input.restaurantId)) {
+    if (this.swipes.some((swipe) => swipe.sessionId === input.sessionId && swipe.memberId === input.memberId && swipe.restaurantId === input.restaurantId)) {
       return { created: false };
     }
     this.swipes.push(input);
@@ -424,8 +460,8 @@ class MemorySessionRepo implements SessionRepo<MemorySessionRepo> {
     return { candidateId };
   }
 
-  async updateMemberRadius(_tx: MemorySessionRepo, sessionId: string, userId: string, radiusM: number): Promise<void> {
-    const member = this.members.find((candidate) => candidate.sessionId === sessionId && candidate.userId === userId);
+  async updateMemberRadius(_tx: MemorySessionRepo, sessionId: string, memberId: string, radiusM: number): Promise<void> {
+    const member = this.members.find((candidate) => candidate.sessionId === sessionId && candidate.id === memberId);
     if (member) {
       member.radiusM = radiusM;
     }

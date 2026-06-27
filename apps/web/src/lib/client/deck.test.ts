@@ -1,13 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { Restaurant } from "@scope/contract";
-import { api } from "./orpc";
-import { createDeck } from "./deck.svelte";
 
 // Behaviour-level tests against the SAME in-memory mock the app uses
 // (PUBLIC_USE_MOCK=1). load()/decide() exercise the real api transport; a
 // session is created first so the mock can resolve swipe.decide. The pure
 // deck mechanics (pop / append+dedupe / low flag) are asserted on observable
 // state, never on internals.
+vi.mock("$env/static/public", () => ({ PUBLIC_USE_MOCK: "1" }));
+
+const { api } = await import("./orpc");
+const { createDeck } = await import("./deck.svelte");
 
 const fakeRestaurant = (id: string): Restaurant => ({
   id,
@@ -74,5 +76,18 @@ describe("createDeck", () => {
     // overlapping batch: x is a dup, z is new
     deck.appendReplenished([fakeRestaurant("x"), fakeRestaurant("z")]);
     expect(deck.cards.map((c) => c.id)).toEqual(["x", "y", "z"]);
+  });
+
+  it("load() merges into existing cards instead of clobbering them", async () => {
+    // Guards the deck.replenished race: a concurrent replenish appends cards
+    // while load()'s fetch is in flight; load() must not wipe them on resolve.
+    const sessionId = await freshSession();
+    const deck = createDeck(sessionId);
+    deck.appendReplenished([fakeRestaurant("pre-1"), fakeRestaurant("pre-2")]);
+    await deck.load();
+    // The pre-seeded cards survive the load, and the fetched deck is added.
+    expect(deck.cards.some((c) => c.id === "pre-1")).toBe(true);
+    expect(deck.cards.some((c) => c.id === "pre-2")).toBe(true);
+    expect(deck.cards.length).toBeGreaterThan(2);
   });
 });
