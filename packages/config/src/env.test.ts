@@ -26,6 +26,8 @@ describe("parseEnv", () => {
       RADIUS_CAP_M: 3000,
       POLL_TIMER_MS: 300000,
       PLACES_CACHE_TTL_S: 1800,
+      RATE_LIMIT_ENABLED: undefined,
+      TRUSTED_IP_HEADER: undefined,
     });
   });
 
@@ -44,6 +46,8 @@ describe("parseEnv", () => {
         GOOGLE_CLIENT_SECRET: "google-client-secret",
         PROMOTE_THRESHOLD: "3",
         RADIUS_CAP_M: "4500",
+        RATE_LIMIT_ENABLED: "true",
+        TRUSTED_IP_HEADER: "x-forwarded-for",
       }),
     ).toMatchObject({
       PLACES_PROVIDER: "google",
@@ -53,6 +57,8 @@ describe("parseEnv", () => {
       GOOGLE_CLIENT_SECRET: "google-client-secret",
       PROMOTE_THRESHOLD: 3,
       RADIUS_CAP_M: 4500,
+      RATE_LIMIT_ENABLED: true,
+      TRUSTED_IP_HEADER: "x-forwarded-for",
     });
   });
 

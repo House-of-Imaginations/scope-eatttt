@@ -5,6 +5,12 @@ const provider = <T extends readonly [string, ...string[]]>(values: T, fallback:
   z.enum(values).default(fallback);
 
 const positiveInt = (fallback: number) => z.coerce.number().int().positive().default(fallback);
+const optionalBool = z.string().optional().transform((value) => {
+  if (value === undefined) {
+    return undefined;
+  }
+  return value === "1" || value === "true";
+});
 
 const server = {
   DATABASE_URL: z.url(),
@@ -24,6 +30,8 @@ const server = {
   RADIUS_CAP_M: positiveInt(3000),
   POLL_TIMER_MS: positiveInt(300000),
   PLACES_CACHE_TTL_S: positiveInt(1800),
+  RATE_LIMIT_ENABLED: optionalBool,
+  TRUSTED_IP_HEADER: z.string().min(1).optional(),
 };
 
 export interface Env {
@@ -44,6 +52,8 @@ export interface Env {
   RADIUS_CAP_M: number;
   POLL_TIMER_MS: number;
   PLACES_CACHE_TTL_S: number;
+  RATE_LIMIT_ENABLED?: boolean | undefined;
+  TRUSTED_IP_HEADER?: string | undefined;
 }
 
 export function parseEnv(src: Record<string, string | undefined>): Env {

@@ -3,7 +3,7 @@ import { loadEnv } from "@scope/config";
 import type { AuthProvider, Cache, EventBus, JobQueue, PlacesProvider } from "@scope/core";
 import { FakePlaces } from "@scope/core";
 import { createDatabaseClients } from "@scope/db";
-import { BetterAuthProvider, BullQueue, DrizzleRelayStore, DrizzleSessionRepo, GooglePlaces, RedisBus, RedisCache } from "@scope/adapters";
+import { BetterAuthProvider, BullQueue, DrizzleRelayStore, DrizzleSessionRepo, GooglePlaces, RedisBus, RedisCache, RedisSecondaryStorage } from "@scope/adapters";
 import { createAuthFromDatabase } from "./auth";
 import { createOutboxNotifyListener, type OutboxNotifyListener, type RelayStore } from "./relay";
 import type { SessionEventReplayStore } from "./sse";
@@ -48,7 +48,7 @@ export function buildContainer(env: Env = loadEnv(), options: BuildContainerOpti
     queue: options.queue ?? BullQueue.fromRedisUrl("scope-eatttt", env.REDIS_URL),
     cache,
     places: options.places ?? buildPlaces(env, cache, options.fetch),
-    auth: options.auth ?? new BetterAuthProvider(createAuthFromDatabase(env, databaseClients.db, repo)),
+    auth: options.auth ?? new BetterAuthProvider(createAuthFromDatabase(env, databaseClients.db, repo, RedisSecondaryStorage.fromUrl(env.REDIS_URL))),
     relayStore: options.relayStore ?? new DrizzleRelayStore(databaseClients.db),
     relayListener: options.relayListener ?? createOutboxNotifyListener(env.DATABASE_DIRECT_URL),
   };

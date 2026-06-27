@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { memoryAdapter } from "better-auth/adapters/memory";
-import { BetterAuthProvider } from "@scope/adapters";
+import { BetterAuthProvider, RedisSecondaryStorage } from "@scope/adapters";
 import { createAuth, createAuthOptionsFromEnv } from "../src/lib/server/auth";
 
 describe("web auth", () => {
@@ -31,6 +31,7 @@ describe("web auth", () => {
       id: "u1",
       displayName: "Ada",
       email: "ada@example.com",
+      image: null,
       isAnonymous: true,
     });
   });
@@ -59,6 +60,90 @@ describe("web auth", () => {
         memoryAdapter({}),
       ).google,
     ).toEqual({ clientId: "google-client-id", clientSecret: "google-client-secret" });
+  });
+
+  it("configures Better Auth rate limits against secondary storage", () => {
+    const secondaryStorage = new RedisSecondaryStorage({
+      get: async () => null,
+      set: async () => {},
+      del: async () => {},
+      incr: async () => 1,
+      expire: async () => {},
+    });
+
+    const options = createAuthOptionsFromEnv(
+      {
+        DATABASE_URL: "postgres://app:app@localhost:6432/app",
+        DATABASE_DIRECT_URL: "postgres://app:app@localhost:5432/app",
+        REDIS_URL: "redis://localhost:6379",
+        PLACES_PROVIDER: "fake",
+        OCR_PROVIDER: "fake",
+        BETTER_AUTH_SECRET: "secret",
+        BETTER_AUTH_URL: "http://localhost:5173",
+        PROMOTE_THRESHOLD: 2,
+        REJECT_STREAK: 5,
+        RADIUS_BASE_M: 500,
+        RADIUS_STEP_M: 500,
+        RADIUS_CAP_M: 3000,
+        POLL_TIMER_MS: 300000,
+        PLACES_CACHE_TTL_S: 1800,
+        RATE_LIMIT_ENABLED: true,
+        TRUSTED_IP_HEADER: "x-real-ip",
+      },
+      memoryAdapter({}),
+      undefined,
+      secondaryStorage,
+    );
+
+    expect(options.secondaryStorage).toBe(secondaryStorage);
+    expect(options.rateLimit).toMatchObject({
+      enabled: true,
+      window: 60,
+      max: 100,
+      storage: "secondary-storage",
+      customRules: {
+        "/sign-in/email": { window: 60, max: 10 },
+        "/sign-up/email": { window: 60, max: 10 },
+        "/sign-in/anonymous": { window: 60, max: 10 },
+        "/get-session": false,
+      },
+    });
+    expect(options.advanced).toMatchObject({ ipAddress: { ipAddressHeaders: ["x-real-ip"] } });
+  });
+
+  it("defaults rate-limit IP resolution to one trusted proxy header", () => {
+    const secondaryStorage = new RedisSecondaryStorage({
+      get: async () => null,
+      set: async () => {},
+      del: async () => {},
+      incr: async () => 1,
+      expire: async () => {},
+    });
+
+    const options = createAuthOptionsFromEnv(
+      {
+        DATABASE_URL: "postgres://app:app@localhost:6432/app",
+        DATABASE_DIRECT_URL: "postgres://app:app@localhost:5432/app",
+        REDIS_URL: "redis://localhost:6379",
+        PLACES_PROVIDER: "fake",
+        OCR_PROVIDER: "fake",
+        BETTER_AUTH_SECRET: "secret",
+        BETTER_AUTH_URL: "http://localhost:5173",
+        PROMOTE_THRESHOLD: 2,
+        REJECT_STREAK: 5,
+        RADIUS_BASE_M: 500,
+        RADIUS_STEP_M: 500,
+        RADIUS_CAP_M: 3000,
+        POLL_TIMER_MS: 300000,
+        PLACES_CACHE_TTL_S: 1800,
+        RATE_LIMIT_ENABLED: true,
+      },
+      memoryAdapter({}),
+      undefined,
+      secondaryStorage,
+    );
+
+    expect(options.advanced).toMatchObject({ ipAddress: { ipAddressHeaders: ["x-real-ip"] } });
   });
 
   it("calls the anonymous-link migration hook with both user ids", async () => {
