@@ -58,6 +58,43 @@ describe("createSessionEventStream", () => {
     expect(await readText(reader)).toContain("prompt.broaden");
     await reader.cancel();
   });
+
+  it("replays multiple pages before live events", async () => {
+    const bus = new InMemoryBus();
+    const rows = [
+      row(firstEventId, { type: "poll.opened", payload: { deadlineAt: "2026-06-20T01:07:03.000Z" } }),
+      row(secondEventId, { type: "prompt.broaden", payload: { userId: "user-1", nextRadiusM: 1000 } }),
+      row("00000000-0000-4000-8000-000000000203", { type: "poll.closed", payload: { winnerCandidateId: "00000000-0000-4000-8000-000000000301" } }),
+    ];
+    const stream = await createSessionEventStream({
+      bus,
+      replayStore: new MemoryReplayStore(rows, 2),
+      sessionId,
+      heartbeatMs: 0,
+      replayPageSize: 2,
+    });
+    const reader = stream.getReader();
+
+    expect(await readText(reader)).toContain(`id: ${firstEventId}`);
+    expect(await readText(reader)).toContain(`id: ${secondEventId}`);
+    expect(await readText(reader)).toContain("poll.closed");
+    await bus.publish(`session:${sessionId}`, {
+      id: "00000000-0000-4000-8000-000000000204",
+      sessionId,
+      type: "restaurant.promoted",
+      occurredAt: "2026-06-20T01:09:03.000Z",
+      candidateId: "00000000-0000-4000-8000-000000000301",
+      restaurant: {
+        id: "place-1",
+        name: "Noodle House",
+        address: "1 Main St",
+        cuisineTags: ["thai"],
+      },
+      promotedAt: "2026-06-20T01:09:03.000Z",
+    });
+    expect(await readText(reader)).toContain("restaurant.promoted");
+    await reader.cancel();
+  });
 });
 
 async function readText(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<string> {
@@ -82,14 +119,17 @@ function row(id: string, overrides: Partial<RelayOutboxRow>): RelayOutboxRow {
 }
 
 class MemoryReplayStore implements SessionEventReplayStore {
-  constructor(private readonly rows: RelayOutboxRow[] = []) {}
+  constructor(
+    private readonly rows: RelayOutboxRow[] = [],
+    private readonly pageSize = Number.POSITIVE_INFINITY,
+  ) {}
 
   async listSessionEventsAfter(sessionId: string, afterEventId?: string): Promise<RelayOutboxRow[]> {
     const sessionRows = this.rows.filter((row) => row.aggregateId === sessionId);
     if (!afterEventId) {
-      return sessionRows;
+      return sessionRows.slice(0, this.pageSize);
     }
     const index = sessionRows.findIndex((row) => row.id === afterEventId);
-    return index === -1 ? sessionRows : sessionRows.slice(index + 1);
+    return (index === -1 ? sessionRows : sessionRows.slice(index + 1)).slice(0, this.pageSize);
   }
 }

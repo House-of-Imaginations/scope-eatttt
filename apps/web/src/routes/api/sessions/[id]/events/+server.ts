@@ -2,6 +2,8 @@ import type { RequestHandler } from "@sveltejs/kit";
 import { getContainer } from "$lib/server/container";
 import { createSessionEventStream } from "$lib/server/sse";
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export const GET: RequestHandler = async ({ params, request }) => {
   const sessionId = params.id;
   if (!sessionId) {
@@ -20,6 +22,10 @@ export const GET: RequestHandler = async ({ params, request }) => {
   }
 
   const afterEventId = request.headers.get("last-event-id") ?? undefined;
+  if (afterEventId && !UUID_PATTERN.test(afterEventId)) {
+    return new Response("Invalid Last-Event-ID", { status: 400 });
+  }
+
   const stream = await createSessionEventStream({
     bus: container.bus,
     replayStore: container.relayStore,

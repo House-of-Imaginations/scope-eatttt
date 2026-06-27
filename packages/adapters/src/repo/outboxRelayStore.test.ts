@@ -59,6 +59,7 @@ describe("DrizzleRelayStore", () => {
         occurredAt: new Date("2026-06-20T01:08:03.000Z"),
       });
       await expect(store.listSessionEventsAfter(sessionId, eventId)).resolves.toMatchObject([{ id: nextEventId }]);
+      await expect(store.listSessionEventsAfter(sessionId, "00000000-0000-4000-8000-000000000999")).resolves.toEqual([]);
     } finally {
       await clients.pooledSql.end({ timeout: 5 });
       await clients.directSql.end({ timeout: 5 });

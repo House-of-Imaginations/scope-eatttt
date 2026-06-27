@@ -1,8 +1,9 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import type { AppEvent } from "@scope/contract";
 import { createDatabaseClients, outboxEvent } from "@scope/db";
 
 type Database = ReturnType<typeof createDatabaseClients>["db"];
+const SESSION_REPLAY_LIMIT = 500;
 
 export interface DrizzleRelayOutboxRow {
   id: string;
@@ -45,22 +46,30 @@ export class DrizzleRelayStore {
   }
 
   async listSessionEventsAfter(sessionId: string, afterEventId?: string): Promise<DrizzleRelayOutboxRow[]> {
+    const baseWhere = and(eq(outboxEvent.aggregate, "session"), eq(outboxEvent.aggregateId, sessionId));
+    const cursorWhere = afterEventId ? replayCursorWhere(sessionId, afterEventId) : undefined;
+
     const rows = await this.db
       .select()
       .from(outboxEvent)
-      .where(and(eq(outboxEvent.aggregate, "session"), eq(outboxEvent.aggregateId, sessionId)))
-      .orderBy(asc(outboxEvent.createdAt));
-    return rows.slice(replayStartIndex(rows, afterEventId)).map(outboxRow);
+      .where(cursorWhere ? and(baseWhere, cursorWhere) : baseWhere)
+      .orderBy(asc(outboxEvent.createdAt), asc(outboxEvent.id))
+      .limit(SESSION_REPLAY_LIMIT);
+    return rows.map(outboxRow);
   }
 }
 
-function replayStartIndex(rows: Array<typeof outboxEvent.$inferSelect>, afterEventId?: string): number {
-  if (!afterEventId) {
-    return 0;
-  }
-
-  const eventIndex = rows.findIndex((row) => row.id === afterEventId);
-  return eventIndex === -1 ? 0 : eventIndex + 1;
+function replayCursorWhere(sessionId: string, afterEventId: string): SQL {
+  return sql`
+    (${outboxEvent.createdAt}, ${outboxEvent.id}) > (
+      select cursor_event.created_at, cursor_event.id
+      from outbox_event as cursor_event
+      where cursor_event.aggregate = 'session'
+        and cursor_event.aggregate_id = ${sessionId}
+        and cursor_event.id = ${afterEventId}
+      limit 1
+    )
+  `;
 }
 
 function outboxRow(row: typeof outboxEvent.$inferSelect): DrizzleRelayOutboxRow {

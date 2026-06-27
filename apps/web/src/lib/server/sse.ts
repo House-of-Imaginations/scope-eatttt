@@ -11,7 +11,10 @@ export interface CreateSessionEventStreamOptions {
   sessionId: string;
   afterEventId?: string | undefined;
   heartbeatMs?: number | undefined;
+  replayPageSize?: number | undefined;
 }
+
+const DEFAULT_REPLAY_PAGE_SIZE = 500;
 
 export async function createSessionEventStream({
   bus,
@@ -19,6 +22,7 @@ export async function createSessionEventStream({
   sessionId,
   afterEventId,
   heartbeatMs = 25_000,
+  replayPageSize = DEFAULT_REPLAY_PAGE_SIZE,
 }: CreateSessionEventStreamOptions): Promise<ReadableStream<Uint8Array>> {
   const encoder = new TextEncoder();
   let controller: ReadableStreamDefaultController<Uint8Array>;
@@ -56,11 +60,23 @@ export async function createSessionEventStream({
 
   unsubscribe = await bus.subscribe(`session:${sessionId}`, writeEvent);
 
-  for (const row of await replayStore.listSessionEventsAfter(sessionId, afterEventId)) {
-    writeEvent(outboxRowToEvent(row));
-  }
+  await replayEvents(afterEventId);
 
   return stream;
+
+  async function replayEvents(startAfterEventId?: string): Promise<void> {
+    let cursor = startAfterEventId;
+    while (!closed) {
+      const rows = await replayStore.listSessionEventsAfter(sessionId, cursor);
+      for (const row of rows) {
+        writeEvent(outboxRowToEvent(row));
+      }
+      if (rows.length < replayPageSize) {
+        return;
+      }
+      cursor = rows.at(-1)?.id;
+    }
+  }
 }
 
 function formatSse(event: PublishedAppEvent): string {
