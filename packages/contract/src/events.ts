@@ -25,6 +25,7 @@ export const MemberSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().min(1),
   displayName: z.string().min(1),
+  image: z.string().optional(),
   isHost: z.boolean(),
   joinedAt: z.string().datetime(),
 });

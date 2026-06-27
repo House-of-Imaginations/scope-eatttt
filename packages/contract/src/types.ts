@@ -18,6 +18,7 @@ export interface Member {
   id: string;
   userId: string;
   displayName: string;
+  image?: string | undefined;
   isHost: boolean;
   joinedAt: string;
 }

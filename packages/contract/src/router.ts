@@ -1,6 +1,8 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 import { AppEventSchema, CandidateSchema, RestaurantSchema } from "./events";
+import { AbsorbGuestInput } from "./schemas/auth";
+import { DashboardHistory, DashboardSessionSummary } from "./schemas/dashboard";
 import { ClosePollInput, StartPollInput, VoteInput } from "./schemas/poll";
 import { CreateSessionInput, JoinSessionInput, MemberScopedSessionInput, SessionIdInput, SessionStateSchema } from "./schemas/session";
 import { BroadenInput, SwipeInput } from "./schemas/swipe";
@@ -24,6 +26,13 @@ export const contract = {
     results: oc.input(SessionIdInput).output(z.array(CandidateSchema)),
     vote: oc.input(VoteInput).output(z.object({ candidateId: z.string().uuid(), netScore: z.number().int() })),
     close: oc.input(ClosePollInput).output(z.object({ winnerCandidateId: z.string().uuid() })),
+  },
+  dashboard: {
+    history: oc.input(z.object({})).output(DashboardHistory),
+    session: oc.input(SessionIdInput).output(DashboardSessionSummary.nullable()),
+  },
+  auth: {
+    absorbGuest: oc.input(AbsorbGuestInput).output(z.object({ reassigned: z.boolean() })),
   },
 };
 

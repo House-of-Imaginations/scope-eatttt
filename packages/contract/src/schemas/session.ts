@@ -13,6 +13,7 @@ export const MemberScopedSessionInput = SessionIdInput.extend({
 
 export const SessionSummarySchema = z.object({
   id: z.string().uuid(),
+  title: z.string().nullable().optional(),
   joinCode: z.string().min(4).max(12),
   hostUserId: z.string().min(1).optional(),
   status: SessionStatusSchema.optional(),
@@ -22,6 +23,9 @@ export const SessionSummarySchema = z.object({
   cuisines: z.array(z.string()).optional(),
   pollDeadlineAt: z.string().datetime().optional(),
   winnerCandidateId: z.string().uuid().optional(),
+  winnerName: z.string().nullable().optional(),
+  candidates: z.array(CandidateSchema).optional(),
+  members: z.array(MemberSchema).optional(),
 });
 
 export const SessionStateSchema = z.object({
@@ -45,6 +49,9 @@ export const CreateSessionInput = z.object({
   lng: z.number().min(-180).max(180),
   cuisines: z.array(z.string().min(1)).default([]),
   radiusM: z.number().int().positive().default(500),
+  title: z.string().trim().min(1).max(60).optional(),
+  pollDurationSec: z.union([z.literal(60), z.literal(180), z.literal(300), z.literal(600)]).optional(),
+  promoteThreshold: z.number().int().min(1).max(5).optional(),
 });
 
 export const JoinSessionInput = z.object({
