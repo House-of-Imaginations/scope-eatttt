@@ -34,6 +34,7 @@ export async function createSession<Tx>(
   input: CreateSessionInput,
   hostUserId: string,
   hostDisplayName = "Host",
+  hostImage?: string,
 ): Promise<CreateSessionResult> {
   return deps.repo.withTx(async (tx) => {
     const sessionId = deps.ids.sessionId?.() ?? crypto.randomUUID();
@@ -45,6 +46,7 @@ export async function createSession<Tx>(
       sessionId,
       userId: hostUserId,
       displayName: hostDisplayName,
+      ...(hostImage === undefined ? {} : { image: hostImage }),
       isHost: true,
       joinedAt: now,
     };
@@ -52,11 +54,14 @@ export async function createSession<Tx>(
     await deps.repo.createSession(tx, {
       id: sessionId,
       joinCode,
+      ...(input.title === undefined ? {} : { title: input.title }),
       hostUserId,
       lat: input.lat,
       lng: input.lng,
       radiusM: input.radiusM,
       cuisines: input.cuisines,
+      pollDurationSec: input.pollDurationSec ?? 300,
+      promoteThreshold: input.promoteThreshold ?? 2,
       createdAt: now,
     });
     await deps.repo.addMember(tx, member);
@@ -70,6 +75,7 @@ export async function joinSession<Tx>(
   deps: Omit<SessionCommandDeps<Tx>, "ids"> & { ids: Pick<SessionCommandIds, "memberId"> },
   input: JoinSessionInput,
   userId: string,
+  memberImage?: string,
 ): Promise<JoinSessionResult> {
   return deps.repo.withTx(async (tx) => {
     const joinCode = normalizeJoinCode(input.joinCode);
@@ -84,6 +90,7 @@ export async function joinSession<Tx>(
       sessionId: session.id,
       userId,
       displayName: input.displayName,
+      ...(memberImage === undefined ? {} : { image: memberImage }),
       isHost: false,
       joinedAt: deps.now(),
     };
@@ -131,6 +138,7 @@ function memberJoinedEvent(sessionId: string, member: AddMemberRecord): OutboxWr
         id: member.id,
         userId: member.userId,
         displayName: member.displayName,
+        ...(member.image === undefined ? {} : { image: member.image }),
         isHost: member.isHost,
         joinedAt: member.joinedAt,
       },

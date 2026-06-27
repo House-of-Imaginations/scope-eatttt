@@ -1,4 +1,4 @@
-import type { AppEvent, Restaurant, SessionState } from "@scope/contract";
+import type { AppEvent, DashboardHistoryItem, DashboardSessionSummary, Restaurant, SessionState } from "@scope/contract";
 
 export interface TransactionContext {
   txId?: string;
@@ -14,11 +14,14 @@ export interface OutboxWrite {
 export interface CreateSessionRecord {
   id: string;
   joinCode: string;
+  title?: string;
   hostUserId: string;
   lat: number;
   lng: number;
   radiusM: number;
   cuisines: string[];
+  pollDurationSec: number;
+  promoteThreshold: number;
   createdAt: string;
 }
 
@@ -27,6 +30,7 @@ export interface AddMemberRecord {
   sessionId: string;
   userId: string;
   displayName: string;
+  image?: string | undefined;
   isHost: boolean;
   joinedAt: string;
   radiusM?: number;
@@ -35,12 +39,15 @@ export interface AddMemberRecord {
 export interface SessionSummary {
   id: string;
   joinCode: string;
+  title?: string | null;
   hostUserId?: string;
   status?: SessionState["status"];
   lat?: number;
   lng?: number;
   radiusM?: number;
   cuisines?: string[];
+  pollDurationSec?: number;
+  promoteThreshold?: number;
   pollDeadlineAt?: string;
   winnerCandidateId?: string;
 }
@@ -51,6 +58,8 @@ export interface SessionRepo<Tx = TransactionContext> {
   addMember(tx: Tx, input: AddMemberRecord): Promise<void>;
   getSession(tx: Tx, sessionId: string): Promise<SessionSummary | null>;
   getSessionByJoinCode(tx: Tx, joinCode: string): Promise<SessionSummary | null>;
+  listSessionsForUser(tx: Tx, userId: string): Promise<DashboardHistoryItem[]>;
+  getSessionSummary(tx: Tx, sessionId: string, userId: string): Promise<DashboardSessionSummary | null>;
   listMembers(tx: Tx, sessionId: string): Promise<AddMemberRecord[]>;
   isHost(tx: Tx, sessionId: string, userId: string): Promise<boolean>;
   startSwiping(tx: Tx, sessionId: string): Promise<void>;
@@ -69,5 +78,6 @@ export interface PlacesFetchRepo<Tx = TransactionContext> {
 }
 
 export interface UserLinkRepo {
+  isAnonymousUser(userId: string): Promise<boolean>;
   reassignUserRows(anonymousUserId: string, newUserId: string): Promise<void>;
 }

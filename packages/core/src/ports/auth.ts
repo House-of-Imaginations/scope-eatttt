@@ -2,6 +2,7 @@ export interface AuthUser {
   id: string;
   email?: string | null;
   displayName: string;
+  image?: string | null;
   isAnonymous?: boolean;
 }
 
