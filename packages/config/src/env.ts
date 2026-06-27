@@ -11,6 +11,10 @@ const optionalBool = z.string().optional().transform((value) => {
   }
   return value === "1" || value === "true";
 });
+const authSecret = z.string().min(32).refine(
+  (value) => !["replace-me-with-openssl-rand-base64-48", "dev-secret-change-me"].includes(value),
+  "BETTER_AUTH_SECRET must be a generated secret",
+);
 
 const server = {
   DATABASE_URL: z.url(),
@@ -21,7 +25,7 @@ const server = {
   GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
-  BETTER_AUTH_SECRET: z.string().min(1),
+  BETTER_AUTH_SECRET: authSecret,
   BETTER_AUTH_URL: z.url(),
   PROMOTE_THRESHOLD: positiveInt(2),
   REJECT_STREAK: positiveInt(5),

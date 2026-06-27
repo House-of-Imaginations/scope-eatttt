@@ -45,7 +45,7 @@ describe("web auth", () => {
           REDIS_URL: "redis://localhost:6379",
           PLACES_PROVIDER: "fake",
           OCR_PROVIDER: "fake",
-          BETTER_AUTH_SECRET: "secret",
+          BETTER_AUTH_SECRET: "test-secret-at-least-32-characters",
           BETTER_AUTH_URL: "http://localhost:5173",
           PROMOTE_THRESHOLD: 2,
           REJECT_STREAK: 5,
@@ -78,7 +78,7 @@ describe("web auth", () => {
         REDIS_URL: "redis://localhost:6379",
         PLACES_PROVIDER: "fake",
         OCR_PROVIDER: "fake",
-        BETTER_AUTH_SECRET: "secret",
+        BETTER_AUTH_SECRET: "test-secret-at-least-32-characters",
         BETTER_AUTH_URL: "http://localhost:5173",
         PROMOTE_THRESHOLD: 2,
         REJECT_STREAK: 5,
@@ -111,7 +111,7 @@ describe("web auth", () => {
     expect(options.advanced).toMatchObject({ ipAddress: { ipAddressHeaders: ["x-real-ip"] } });
   });
 
-  it("defaults rate-limit IP resolution to one trusted proxy header", () => {
+  it("does not trust proxy IP headers by default", () => {
     const secondaryStorage = new RedisSecondaryStorage({
       get: async () => null,
       set: async () => {},
@@ -127,7 +127,7 @@ describe("web auth", () => {
         REDIS_URL: "redis://localhost:6379",
         PLACES_PROVIDER: "fake",
         OCR_PROVIDER: "fake",
-        BETTER_AUTH_SECRET: "secret",
+        BETTER_AUTH_SECRET: "test-secret-at-least-32-characters",
         BETTER_AUTH_URL: "http://localhost:5173",
         PROMOTE_THRESHOLD: 2,
         REJECT_STREAK: 5,
@@ -143,7 +143,7 @@ describe("web auth", () => {
       secondaryStorage,
     );
 
-    expect(options.advanced).toMatchObject({ ipAddress: { ipAddressHeaders: ["x-real-ip"] } });
+    expect(options.advanced).toBeUndefined();
   });
 
   it("calls the anonymous-link migration hook with both user ids", async () => {

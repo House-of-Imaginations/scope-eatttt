@@ -1,23 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { parseEnv } from "./env";
 
+const validEnv = {
+  DATABASE_URL: "postgres://app:app@localhost:6432/app",
+  DATABASE_DIRECT_URL: "postgres://app:app@localhost:5432/app",
+  REDIS_URL: "redis://localhost:6379",
+  BETTER_AUTH_SECRET: "test-secret-at-least-32-characters",
+  BETTER_AUTH_URL: "http://localhost:5173",
+};
+
 describe("parseEnv", () => {
   it("loads required URLs, providers, auth settings, and pinned defaults", () => {
     expect(
-      parseEnv({
-        DATABASE_URL: "postgres://app:app@localhost:6432/app",
-        DATABASE_DIRECT_URL: "postgres://app:app@localhost:5432/app",
-        REDIS_URL: "redis://localhost:6379",
-        BETTER_AUTH_SECRET: "secret",
-        BETTER_AUTH_URL: "http://localhost:5173",
-      }),
+      parseEnv(validEnv),
     ).toMatchObject({
       DATABASE_URL: "postgres://app:app@localhost:6432/app",
       DATABASE_DIRECT_URL: "postgres://app:app@localhost:5432/app",
       REDIS_URL: "redis://localhost:6379",
       PLACES_PROVIDER: "fake",
       OCR_PROVIDER: "fake",
-      BETTER_AUTH_SECRET: "secret",
+      BETTER_AUTH_SECRET: "test-secret-at-least-32-characters",
       BETTER_AUTH_URL: "http://localhost:5173",
       PROMOTE_THRESHOLD: 2,
       REJECT_STREAK: 5,
@@ -34,11 +36,7 @@ describe("parseEnv", () => {
   it("accepts explicit provider and numeric overrides", () => {
     expect(
       parseEnv({
-        DATABASE_URL: "postgres://app:app@localhost:6432/app",
-        DATABASE_DIRECT_URL: "postgres://app:app@localhost:5432/app",
-        REDIS_URL: "redis://localhost:6379",
-        BETTER_AUTH_SECRET: "secret",
-        BETTER_AUTH_URL: "http://localhost:5173",
+        ...validEnv,
         PLACES_PROVIDER: "google",
         OCR_PROVIDER: "mindee",
         GOOGLE_MAPS_API_KEY: "maps-key",
@@ -65,11 +63,7 @@ describe("parseEnv", () => {
   it("treats empty strings as undefined before applying defaults", () => {
     expect(
       parseEnv({
-        DATABASE_URL: "postgres://app:app@localhost:6432/app",
-        DATABASE_DIRECT_URL: "postgres://app:app@localhost:5432/app",
-        REDIS_URL: "redis://localhost:6379",
-        BETTER_AUTH_SECRET: "secret",
-        BETTER_AUTH_URL: "http://localhost:5173",
+        ...validEnv,
         GOOGLE_MAPS_API_KEY: "",
         GOOGLE_CLIENT_ID: "",
         GOOGLE_CLIENT_SECRET: "",
@@ -85,5 +79,20 @@ describe("parseEnv", () => {
 
   it("throws on missing required variables", () => {
     expect(() => parseEnv({})).toThrow();
+  });
+
+  it("rejects short or placeholder Better Auth secrets", () => {
+    expect(() =>
+      parseEnv({
+        ...validEnv,
+        BETTER_AUTH_SECRET: "secret",
+      }),
+    ).toThrow();
+    expect(() =>
+      parseEnv({
+        ...validEnv,
+        BETTER_AUTH_SECRET: "replace-me-with-openssl-rand-base64-48",
+      }),
+    ).toThrow();
   });
 });

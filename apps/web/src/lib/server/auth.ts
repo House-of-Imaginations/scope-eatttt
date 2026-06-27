@@ -75,7 +75,7 @@ export function createAuthOptionsFromEnv(
           "/get-session": false,
         },
       } satisfies BetterAuthOptions["rateLimit"];
-  const trustedIpHeader = env.TRUSTED_IP_HEADER ?? (secondaryStorage === undefined ? undefined : "x-real-ip");
+  const trustedIpHeader = env.TRUSTED_IP_HEADER;
   const advanced = trustedIpHeader === undefined
     ? undefined
     : { ipAddress: { ipAddressHeaders: [trustedIpHeader] } } satisfies BetterAuthOptions["advanced"];
