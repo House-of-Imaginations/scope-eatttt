@@ -1,19 +1,6 @@
-import { redirect } from "@sveltejs/kit";
 import { getSessionSummary, type DashboardDeps } from "@scope/core";
 import type { DashboardSessionSummary } from "@scope/contract";
-
-interface MaybeUser {
-  id: string;
-  isAnonymous?: boolean | null;
-}
-
-function requireRealUser(user: unknown): MaybeUser {
-  const u = user as MaybeUser | null;
-  if (!u || u.isAnonymous) {
-    throw redirect(302, "/login?redirect=/dashboard");
-  }
-  return u;
-}
+import { requireRealUser } from "../_guard.js";
 
 export async function loadSummary<Tx>(
   user: unknown,
