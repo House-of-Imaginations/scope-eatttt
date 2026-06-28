@@ -651,7 +651,7 @@
     font-family: var(--font-display);
     font-weight: 800;
     font-size: 14px;
-    color: #ffffff; /* white on --color-reject red; matches reconnect-banner pattern */
+    color: var(--color-white);
     background-color: var(--color-reject);
     border: 3px solid var(--color-stroke);
     border-radius: var(--radius-lg);
@@ -684,7 +684,7 @@
     font-family: var(--font-display);
     font-weight: 800;
     font-size: 14px;
-    color: #ffffff;
+    color: var(--color-white);
     background-color: var(--color-electric-blue);
     border: 3px solid var(--color-stroke);
     border-radius: var(--radius-lg);

@@ -11,8 +11,6 @@
     user = await getCurrentUser();
   });
 
-  // Real (non-anonymous) signed-in user gets the account nav; everyone else
-  // (anonymous guest or logged out) gets a Log in link.
   const isReal = $derived(!!user && !user.isAnonymous);
 
   async function logout() {
