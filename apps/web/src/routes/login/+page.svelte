@@ -3,15 +3,15 @@ import { goto } from "$app/navigation";
 import { page } from "$app/state";
 import { PUBLIC_GOOGLE_ENABLED } from "$env/static/public";
 import { signInEmail, signInGoogle } from "$lib/client/authClient";
+import { safeRedirect } from "$lib/client/safeRedirect";
 import { parsePublicEnv } from "@scope/config";
 import { Button } from "@scope/ui";
 
 const googleEnabled = parsePublicEnv({ PUBLIC_GOOGLE_ENABLED }).googleEnabled;
 
 // ponytail: query read via $app/state, same idiom as the join screen.
-const redirect = $derived(
-	page.url.searchParams.get("redirect") ?? "/dashboard",
-);
+// safeRedirect blocks open-redirect: only local "/x" paths pass.
+const redirect = $derived(safeRedirect(page.url.searchParams.get("redirect")));
 const signupHref = $derived(`/signup?redirect=${encodeURIComponent(redirect)}`);
 
 let email = $state("");
