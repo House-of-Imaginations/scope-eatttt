@@ -275,7 +275,7 @@
       <h2 class="section-label">Who's in</h2>
       <div class="members">
         {#each session.members as member (member.id)}
-          <MemberPill name={member.displayName} host={member.isHost} />
+          <MemberPill name={member.displayName} image={member.image} host={member.isHost} />
         {/each}
       </div>
 

@@ -7,7 +7,9 @@
     size = 32,
   }: {
     name: string;
-    image?: string;
+    // ponytail: allow `undefined` so callers can forward an optional image
+    // under exactOptionalPropertyTypes without juggling spreads.
+    image?: string | undefined;
     size?: number;
   } = $props();
 </script>

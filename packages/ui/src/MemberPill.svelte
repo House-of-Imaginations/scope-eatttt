@@ -1,14 +1,19 @@
 <script lang="ts">
+  import Avatar from "./Avatar.svelte";
+
   let {
     name,
+    image,
     host = false,
   }: {
     name: string;
+    image?: string | undefined;
     host?: boolean;
   } = $props();
 </script>
 
 <span class="pill" class:host>
+  <Avatar {name} {image} size={24} />
   {#if host}<span class="marker" aria-label="host">★</span>{/if}
   {name}
 </span>
@@ -23,7 +28,7 @@
     gap: 4px;
     border: 2px solid var(--color-stroke);
     border-radius: var(--radius-full);
-    padding: 4px 12px;
+    padding: 4px 12px 4px 4px;
     background-color: var(--color-bubblegum-pink);
     color: var(--color-ink);
     font-family: var(--font-display);

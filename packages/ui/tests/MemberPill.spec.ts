@@ -17,3 +17,19 @@ test("host member fills banana-yellow and shows a marker", async ({ mount }) => 
   await expect(c).toHaveCSS("background-color", "rgb(250, 204, 21)"); // #FACC15
   await expect(c.getByLabel("host")).toBeVisible();
 });
+
+test("with image renders the avatar photo next to the name", async ({ mount }) => {
+  const c = await mount(MemberPill, {
+    props: { name: "Mia", image: "https://example.com/mia.jpg" },
+  });
+  const img = c.locator("img");
+  await expect(img).toHaveCount(1);
+  await expect(img).toHaveAttribute("src", "https://example.com/mia.jpg");
+  await expect(c).toContainText("Mia");
+});
+
+test("without image renders initials, no img", async ({ mount }) => {
+  const c = await mount(MemberPill, { props: { name: "Mia" } });
+  await expect(c.locator("img")).toHaveCount(0);
+  await expect(c).toContainText("M"); // initials avatar
+});

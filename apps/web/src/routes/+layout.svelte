@@ -3,6 +3,7 @@
   import "../styles/global.css";
   import { configureFrontendLogging, getAppLogger } from "@scope/logging/browser";
   import { ensureAnonSession } from "$lib/client/auth";
+  import AppHeader from "$lib/components/AppHeader.svelte";
 
   let { children } = $props();
 
@@ -19,6 +20,7 @@
   });
 </script>
 
+<AppHeader />
 <div class="layout-shell">
   {@render children()}
 </div>
