@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import { getCurrentUser } from "$lib/client/authClient";
   import { storeSessionMember } from "$lib/client/memberSession";
   import { api } from "$lib/client/orpc";
   import { Button } from "@scope/ui";
@@ -11,20 +12,25 @@
   let displayName = $state("");
   let loading = $state(false);
   let error = $state<string | null>(null);
+  // Real (non-anon) account name once the mount check resolves; null = guest path.
+  let accountName = $state<string | null>(null);
+
+  // ponytail: reuse session.join; logged-in path just prefills displayName from the account.
+  $effect(() => {
+    getCurrentUser().then((user) => {
+      if (user && !user.isAnonymous) accountName = user.name;
+    });
+  });
 
   // Disable submit when name is blank or request in flight
   const canSubmit = $derived(displayName.trim().length > 0 && !loading);
 
-  async function handleSubmit(e: SubmitEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
+  // Shared join → store → navigate. Both paths feed it a display name.
+  async function join(name: string) {
     error = null;
     loading = true;
     try {
-      const result = await api.session.join({
-        joinCode: code,
-        displayName: displayName.trim(),
-      });
+      const result = await api.session.join({ joinCode: code, displayName: name });
       storeSessionMember(result.sessionId, result.memberId);
       await goto(`/s/${result.sessionId}`);
     } catch (err) {
@@ -36,6 +42,12 @@
       loading = false;
     }
   }
+
+  async function handleSubmit(e: SubmitEvent) {
+    e.preventDefault();
+    if (!canSubmit) return;
+    await join(displayName.trim());
+  }
 </script>
 
 <main class="page">
@@ -45,29 +57,52 @@
       Joining <span class="code-badge">{code}</span>
     </p>
 
-    <form onsubmit={handleSubmit}>
-      <label class="field-label" for="display-name">Your name</label>
-      <input
-        id="display-name"
-        class="text-input"
-        type="text"
-        placeholder="e.g. Alice"
-        aria-label="Display name"
-        bind:value={displayName}
-        autocomplete="off"
-        maxlength={40}
-      />
-
+    {#if accountName}
       {#if error}
         <p class="error-msg" role="alert">{error}</p>
       {/if}
-
       <div class="submit-row">
-        <Button type="submit" variant="primary" disabled={!canSubmit}>
-          {loading ? "Joining…" : "Join lunch"}
+        <Button
+          variant="primary"
+          disabled={loading}
+          onclick={() => join(accountName as string)}
+        >
+          {loading ? "Joining…" : `Join as ${accountName}`}
         </Button>
       </div>
-    </form>
+    {:else}
+      <form onsubmit={handleSubmit}>
+        <label class="field-label" for="display-name">Your name</label>
+        <input
+          id="display-name"
+          class="text-input"
+          type="text"
+          placeholder="e.g. Alice"
+          aria-label="Display name"
+          bind:value={displayName}
+          autocomplete="off"
+          maxlength={40}
+        />
+
+        {#if error}
+          <p class="error-msg" role="alert">{error}</p>
+        {/if}
+
+        <div class="submit-row">
+          <Button type="submit" variant="primary" disabled={!canSubmit}>
+            {loading ? "Joining…" : "Join lunch"}
+          </Button>
+        </div>
+      </form>
+
+      <!-- ponytail: subtle secondary line; redirect back to this join path post-login -->
+      <p class="signin-line">
+        Have an account?
+        <a class="signin-link" href={`/login?redirect=${encodeURIComponent(`/join/${code}`)}`}>
+          Sign in
+        </a>
+      </p>
+    {/if}
   </div>
 </main>
 
@@ -166,5 +201,21 @@
   .submit-row {
     display: flex;
     justify-content: flex-end;
+  }
+
+  /* ponytail: small, subtle secondary line under the form */
+  .signin-line {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-ink-muted);
+    text-align: center;
+    margin: 16px 0 0;
+  }
+
+  .signin-link {
+    color: var(--color-ink);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 </style>
