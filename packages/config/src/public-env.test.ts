@@ -15,4 +15,17 @@ describe("parsePublicEnv", () => {
     expect(parsePublicEnv({ PUBLIC_USE_MOCK: "0" }).useMock).toBe(false);
     expect(parsePublicEnv({ PUBLIC_USE_MOCK: "" }).useMock).toBe(false);
   });
+
+  it('treats "1" as googleEnabled true', () => {
+    expect(parsePublicEnv({ PUBLIC_GOOGLE_ENABLED: "1" }).googleEnabled).toBe(true);
+  });
+  it('treats "true" as googleEnabled true', () => {
+    expect(parsePublicEnv({ PUBLIC_GOOGLE_ENABLED: "true" }).googleEnabled).toBe(true);
+  });
+  it("googleEnabled defaults to false when absent", () => {
+    expect(parsePublicEnv({}).googleEnabled).toBe(false);
+  });
+  it('googleEnabled treats undefined/"" as false', () => {
+    expect(parsePublicEnv({ PUBLIC_GOOGLE_ENABLED: "" }).googleEnabled).toBe(false);
+  });
 });
