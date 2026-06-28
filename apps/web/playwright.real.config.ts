@@ -19,7 +19,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: "**/e2e-real.spec.ts",
+  // Real-mode E2E suites: the original realtime fanout flow plus the accounts /
+  // dashboard / avatars / anon-link flow. Both need the same real stack + server.
+  testMatch: ["**/e2e-real.spec.ts", "**/e2e-accounts.spec.ts"],
   fullyParallel: false,
   retries: 0,
   use: {
@@ -45,6 +47,11 @@ export default defineConfig({
       // Better Auth validates its baseURL against incoming request origins.
       // Override to match the port this dev server actually listens on.
       BETTER_AUTH_URL: "http://localhost:5174",
+      // /login and /signup import PUBLIC_GOOGLE_ENABLED from $env/static/public.
+      // Root .env doesn't define it, so without this the virtual module omits the
+      // export and those pages 500. "0" = Google button hidden (email-only path,
+      // which is all the accounts E2E exercises).
+      PUBLIC_GOOGLE_ENABLED: "0",
     },
   },
 });
