@@ -4,6 +4,7 @@ import { page } from "$app/state";
 import { PUBLIC_GOOGLE_ENABLED } from "$env/static/public";
 import { signInEmail, signInGoogle } from "$lib/client/authClient";
 import { safeRedirect } from "$lib/client/safeRedirect";
+import { refreshUser } from "$lib/client/userStore.svelte";
 import { parsePublicEnv } from "@scope/config";
 import { Button } from "@scope/ui";
 
@@ -31,6 +32,7 @@ async function handleSubmit(e: SubmitEvent) {
 	const r = await signInEmail({ email: email.trim(), password });
 	loading = false;
 	if (r.ok) {
+		await refreshUser();
 		await goto(redirect);
 		return;
 	}
