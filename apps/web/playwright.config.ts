@@ -23,6 +23,8 @@ export default defineConfig({
     timeout: 60_000,
     env: {
       PUBLIC_USE_MOCK: "1",
+      // auth-pages.spec.ts asserts the Google button renders; gate it on.
+      PUBLIC_GOOGLE_ENABLED: "1",
     },
   },
 });
