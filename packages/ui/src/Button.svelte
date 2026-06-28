@@ -6,19 +6,21 @@ type Variant = "primary" | "secondary" | "accept" | "reject";
 const {
 	variant = "primary",
 	disabled = false,
+	fullWidth = false,
 	type = "button",
 	onclick,
 	children,
 }: {
 	variant?: Variant;
 	disabled?: boolean;
+	fullWidth?: boolean;
 	type?: "button" | "submit" | "reset";
 	onclick?: (event: MouseEvent) => void;
 	children?: Snippet;
 } = $props();
 </script>
 
-<button class="btn {variant}" {type} {disabled} {onclick}>
+<button class="btn {variant}" class:full-width={fullWidth} {type} {disabled} {onclick}>
   {@render children?.()}
 </button>
 
@@ -50,6 +52,10 @@ const {
     /* the shadow lives down-right; press translates into it so the block
        visually flattens (mechanical pop) without any blur. */
     transform: translate(0, 0);
+  }
+
+  .full-width {
+    width: 100%;
   }
 
   .btn:hover:not(:disabled),
