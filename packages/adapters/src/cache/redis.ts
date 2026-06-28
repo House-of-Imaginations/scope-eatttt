@@ -6,8 +6,19 @@ export interface RedisLikeCacheClient {
   set(key: string, value: string, mode: "EX", ttlSeconds: number): Promise<unknown>;
 }
 
+export interface RedisRateLimitClient {
+  incr(key: string): Promise<number>;
+  expire(key: string, seconds: number): Promise<void>;
+  ttl(key: string): Promise<number>;
+}
+
 export class RedisCache implements Cache {
   constructor(private readonly client: RedisLikeCacheClient) {}
+
+  /** Typed access to the ioredis client for rate-limit operations. */
+  get rateLimitClient(): RedisRateLimitClient {
+    return this.client as unknown as RedisRateLimitClient;
+  }
 
   static fromUrl(url: string): RedisCache {
     return new RedisCache(new Redis(url));

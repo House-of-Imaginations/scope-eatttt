@@ -6,6 +6,7 @@ import { getAuth } from "$lib/server/auth";
 import { ensureRelayStarted } from "$lib/server/relayRuntime";
 import { getContainer } from "$lib/server/container";
 import { checkRateLimit } from "$lib/server/rateLimit";
+import { RedisCache } from "@scope/adapters";
 import { loadEnv } from "@scope/config";
 
 configureBackendLogging({ service: "web" });
@@ -23,9 +24,7 @@ export const handle: Handle = async ({ event, resolve }) => {
       const ip =
         (header ? event.request.headers.get(header) : null) ??
         event.getClientAddress();
-      // ponytail: cast to any to reach private ioredis client — single call site, no abstraction warranted.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const redis = (getContainer().cache as any).client;
+      const redis = (getContainer().cache as RedisCache).rateLimitClient;
       const { ok, retryAfter } = await checkRateLimit(redis, ip, 300, 60);
       if (!ok) {
         return new Response("Too Many Requests", {

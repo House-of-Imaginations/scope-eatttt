@@ -1,13 +1,10 @@
 // ponytail: fixed-window (INCR + EXPIRE). Upgrade to sliding-window only if abuse rides the boundary.
+import type { RedisRateLimitClient } from "@scope/adapters";
 
-export interface RateLimitRedis {
-  incr(key: string): Promise<number>;
-  expire(key: string, seconds: number): Promise<void>;
-  ttl(key: string): Promise<number>;
-}
+export type { RedisRateLimitClient };
 
 export async function checkRateLimit(
-  redis: RateLimitRedis,
+  redis: RedisRateLimitClient,
   key: string,
   limit: number,
   windowSec: number,
