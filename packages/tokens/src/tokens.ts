@@ -14,10 +14,10 @@ export const tokens = {
     bubblegumPink: "#FBCFE8",
     mintGreen: "#10B981",
     // app role aliases (mapped onto DESIGN.md accents)
-    primary: "#FACC15",  // banana-yellow primary action (label = ink)
-    accept: "#10B981",   // mint-green
-    reject: "#EF4444",   // comic red
-    accent: "#1D4ED8",   // electric-blue highlights/rings
+    primary: "#FACC15", // banana-yellow primary action (label = ink)
+    accept: "#10B981", // mint-green
+    reject: "#EF4444", // comic red
+    accent: "#1D4ED8", // electric-blue highlights/rings
   },
   space: {
     xxs: "4px",

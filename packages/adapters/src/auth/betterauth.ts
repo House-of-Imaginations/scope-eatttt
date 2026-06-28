@@ -2,7 +2,9 @@ import type { AuthProvider, AuthUser } from "@scope/core";
 
 export interface BetterAuthLike {
   api: {
-    getSession(input: { headers: Headers }): Promise<{ user: BetterAuthSessionUser } | null>;
+    getSession(input: { headers: Headers }): Promise<{
+      user: BetterAuthSessionUser;
+    } | null>;
   };
 }
 

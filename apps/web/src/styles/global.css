@@ -2,11 +2,11 @@
 @import "@scope/tokens/src/theme.css";
 
 :root {
-  color-scheme: light;
+	color-scheme: light;
 }
 
 body {
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  font-family: var(--font-body);
+	background: var(--color-canvas);
+	color: var(--color-ink);
+	font-family: var(--font-body);
 }

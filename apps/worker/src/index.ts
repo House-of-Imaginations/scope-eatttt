@@ -1,21 +1,21 @@
-import { Worker, type Job } from "bullmq";
-import { loadEnv, type Env } from "@scope/config";
+import { DrizzleSessionRepo, GooglePlaces, RedisCache } from "@scope/adapters";
+import { type Env, loadEnv } from "@scope/config";
 import { FakePlaces, type PlacesFetchRepo, type PlacesProvider } from "@scope/core";
 import { createDatabaseClients } from "@scope/db";
-import { DrizzleSessionRepo, GooglePlaces, RedisCache } from "@scope/adapters";
 import { configureBackendLogging, getAppLogger } from "@scope/logging";
+import { type Job, Worker } from "bullmq";
 import {
-  runPlacesFetchJob,
   type PlacesFetchDeps,
   type PlacesFetchJobData,
   type PlacesFetchJobResult,
+  runPlacesFetchJob,
 } from "./jobs/placesFetch";
 import {
-  runPollCloseJob,
   type PollCloseDeps,
   type PollCloseJobData,
   type PollCloseJobResult,
   type PollCloseRepo,
+  runPollCloseJob,
 } from "./jobs/pollClose";
 
 type DrizzleTx = Parameters<DrizzleSessionRepo["getSession"]>[0];
@@ -25,7 +25,9 @@ type WorkerRepo<Tx> = PollCloseRepo<Tx> & PlacesFetchRepo<Tx>;
 
 configureBackendLogging({ service: "worker" });
 
-export interface WorkerDeps<Tx> extends Omit<PollCloseDeps<Tx>, "repo">, Omit<PlacesFetchDeps<Tx>, "repo"> {
+export interface WorkerDeps<Tx>
+  extends Omit<PollCloseDeps<Tx>, "repo">,
+    Omit<PlacesFetchDeps<Tx>, "repo"> {
   repo: WorkerRepo<Tx>;
 }
 
@@ -40,7 +42,9 @@ export function buildWorkerDeps(env: Env = loadEnv()): WorkerDeps<DrizzleTx> {
   };
 }
 
-export function createJobProcessor<Tx>(deps: WorkerDeps<Tx>): (job: Job) => Promise<ScopeJobResult> {
+export function createJobProcessor<Tx>(
+  deps: WorkerDeps<Tx>,
+): (job: Job) => Promise<ScopeJobResult> {
   return async (job: Job) => {
     switch (job.name) {
       case "poll.close":
@@ -77,7 +81,9 @@ function buildPlaces(env: Env, cache: RedisCache): PlacesProvider {
 }
 
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
-  getAppLogger(["startup"]).info("Starting worker from file: {file}", { file: process.argv[1] });
+  getAppLogger(["startup"]).info("Starting worker from file: {file}", {
+    file: process.argv[1],
+  });
   createScopeWorker();
   getAppLogger(["startup"]).info("Worker started");
 }

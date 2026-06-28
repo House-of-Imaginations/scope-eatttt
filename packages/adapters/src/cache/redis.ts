@@ -1,5 +1,5 @@
-import Redis from "ioredis";
 import type { Cache } from "@scope/core";
+import Redis from "ioredis";
 
 export interface RedisLikeCacheClient {
   get(key: string): Promise<string | null>;

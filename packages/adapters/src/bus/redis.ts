@@ -1,6 +1,6 @@
-import Redis from "ioredis";
 import type { AppEvent } from "@scope/contract";
 import type { EventBus } from "@scope/core";
+import Redis from "ioredis";
 
 type Callback = (event: AppEvent & { id: string }) => void | Promise<void>;
 
@@ -29,7 +29,10 @@ export class RedisBus implements EventBus {
   }
 
   static fromUrl(url: string): RedisBus {
-    return new RedisBus({ publisher: new Redis(url), subscriber: new Redis(url) });
+    return new RedisBus({
+      publisher: new Redis(url),
+      subscriber: new Redis(url),
+    });
   }
 
   async publish(channel: string, ev: AppEvent & { id: string }): Promise<void> {

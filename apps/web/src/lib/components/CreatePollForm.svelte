@@ -1,115 +1,121 @@
 <script lang="ts">
-  import { api } from "$lib/client/orpc";
-  import { storeSessionMember } from "$lib/client/memberSession";
-  import { Button } from "@scope/ui";
+import { storeSessionMember } from "$lib/client/memberSession";
+import { api } from "$lib/client/orpc";
+import { Button } from "@scope/ui";
 
-  // ponytail: static cuisine list — fetch from API later if ever needed
-  const CUISINES = [
-    "Pizza",
-    "Sushi",
-    "Burgers",
-    "Thai",
-    "Indian",
-    "Mexican",
-    "Vegan",
-    "Cafe",
-  ] as const;
+// ponytail: static cuisine list — fetch from API later if ever needed
+const CUISINES = [
+	"Pizza",
+	"Sushi",
+	"Burgers",
+	"Thai",
+	"Indian",
+	"Mexican",
+	"Vegan",
+	"Cafe",
+] as const;
 
-  const TIMER_OPTIONS = [
-    { label: "1 min", value: 60 },
-    { label: "3 min", value: 180 },
-    { label: "5 min", value: 300 },
-    { label: "10 min", value: 600 },
-  ] as const;
+const TIMER_OPTIONS = [
+	{ label: "1 min", value: 60 },
+	{ label: "3 min", value: 180 },
+	{ label: "5 min", value: 300 },
+	{ label: "10 min", value: 600 },
+] as const;
 
-  let { oncreated }: {
-    oncreated: (result: { sessionId: string; joinCode: string; memberId: string }) => void;
-  } = $props();
+const {
+	oncreated,
+}: {
+	oncreated: (result: {
+		sessionId: string;
+		joinCode: string;
+		memberId: string;
+	}) => void;
+} = $props();
 
-  let lat = $state<number | null>(null);
-  let lng = $state<number | null>(null);
-  let manualLat = $state("");
-  let manualLng = $state("");
-  let geoError = $state(false);
-  let selected = $state<Set<string>>(new Set());
-  let loading = $state(false);
-  let error = $state<string | null>(null);
+let lat = $state<number | null>(null);
+let lng = $state<number | null>(null);
+const manualLat = $state("");
+const manualLng = $state("");
+let geoError = $state(false);
+let selected = $state<Set<string>>(new Set());
+let loading = $state(false);
+let error = $state<string | null>(null);
 
-  let title = $state("");
-  let pollDurationSec = $state<60 | 180 | 300 | 600>(300);
-  let promoteThreshold = $state(2);
+const title = $state("");
+const pollDurationSec = $state<60 | 180 | 300 | 600>(300);
+const promoteThreshold = $state(2);
 
-  // Attempt geolocation on mount; show manual fallback on failure
-  $effect(() => {
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          lat = pos.coords.latitude;
-          lng = pos.coords.longitude;
-        },
-        () => {
-          geoError = true;
-        },
-        { timeout: 5000 },
-      );
-    } else {
-      geoError = true;
-    }
-  });
+// Attempt geolocation on mount; show manual fallback on failure
+$effect(() => {
+	if (typeof navigator !== "undefined" && navigator.geolocation) {
+		navigator.geolocation.getCurrentPosition(
+			(pos) => {
+				lat = pos.coords.latitude;
+				lng = pos.coords.longitude;
+			},
+			() => {
+				geoError = true;
+			},
+			{ timeout: 5000 },
+		);
+	} else {
+		geoError = true;
+	}
+});
 
-  function toggleCuisine(name: string) {
-    const next = new Set(selected);
-    if (next.has(name)) {
-      next.delete(name);
-    } else {
-      next.add(name);
-    }
-    selected = next;
-  }
+function toggleCuisine(name: string) {
+	const next = new Set(selected);
+	if (next.has(name)) {
+		next.delete(name);
+	} else {
+		next.add(name);
+	}
+	selected = next;
+}
 
-  function resolvedCoords(): { lat: number; lng: number } | null {
-    if (lat !== null && lng !== null) return { lat, lng };
-    const pLat = parseFloat(manualLat);
-    const pLng = parseFloat(manualLng);
-    if (!isNaN(pLat) && !isNaN(pLng)) return { lat: pLat, lng: pLng };
-    return null;
-  }
+function resolvedCoords(): { lat: number; lng: number } | null {
+	if (lat !== null && lng !== null) return { lat, lng };
+	const pLat = Number.parseFloat(manualLat);
+	const pLng = Number.parseFloat(manualLng);
+	if (!isNaN(pLat) && !isNaN(pLng)) return { lat: pLat, lng: pLng };
+	return null;
+}
 
-  async function handleSubmit(e: SubmitEvent) {
-    e.preventDefault();
-    error = null;
+async function handleSubmit(e: SubmitEvent) {
+	e.preventDefault();
+	error = null;
 
-    const coords = resolvedCoords();
-    if (!coords) {
-      error = "Please enter your location.";
-      return;
-    }
-    if (selected.size === 0) {
-      error = "Pick at least one cuisine.";
-      return;
-    }
+	const coords = resolvedCoords();
+	if (!coords) {
+		error = "Please enter your location.";
+		return;
+	}
+	if (selected.size === 0) {
+		error = "Pick at least one cuisine.";
+		return;
+	}
 
-    loading = true;
-    try {
-      const trimmedTitle = title.trim();
-      const result = await api.session.create({
-        lat: coords.lat,
-        lng: coords.lng,
-        cuisines: Array.from(selected),
-        radiusM: 500,
-        // ponytail: omit optional fields when blank/default-equivalent
-        ...(trimmedTitle ? { title: trimmedTitle } : {}),
-        pollDurationSec,
-        promoteThreshold,
-      });
-      storeSessionMember(result.sessionId, result.memberId);
-      oncreated(result);
-    } catch (err) {
-      error = err instanceof Error ? err.message : "Something went wrong.";
-    } finally {
-      loading = false;
-    }
-  }
+	loading = true;
+	try {
+		const trimmedTitle = title.trim();
+		const result = await api.session.create({
+			lat: coords.lat,
+			lng: coords.lng,
+			cuisines: Array.from(selected),
+			radiusM: 500,
+			// ponytail: omit optional fields when blank/default-equivalent
+			...(trimmedTitle ? { title: trimmedTitle } : {}),
+			pollDurationSec,
+			promoteThreshold,
+		});
+		storeSessionMember(result.sessionId, result.memberId);
+		oncreated(result);
+	} catch (err) {
+		error = err instanceof Error ? err.message : "Something went wrong.";
+	} finally {
+		loading = false;
+	}
+}
 </script>
 
 <form onsubmit={handleSubmit}>

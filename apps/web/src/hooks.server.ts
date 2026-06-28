@@ -1,13 +1,13 @@
 import { building } from "$app/environment";
-import type { Handle } from "@sveltejs/kit";
-import { svelteKitHandler } from "better-auth/svelte-kit";
-import { configureBackendLogging } from "@scope/logging";
 import { getAuth } from "$lib/server/auth";
-import { ensureRelayStarted } from "$lib/server/relayRuntime";
 import { getContainer } from "$lib/server/container";
 import { checkRateLimit } from "$lib/server/rateLimit";
-import { RedisCache } from "@scope/adapters";
+import { ensureRelayStarted } from "$lib/server/relayRuntime";
+import type { RedisCache } from "@scope/adapters";
 import { loadEnv } from "@scope/config";
+import { configureBackendLogging } from "@scope/logging";
+import type { Handle } from "@sveltejs/kit";
+import { svelteKitHandler } from "better-auth/svelte-kit";
 
 configureBackendLogging({ service: "web" });
 
@@ -21,9 +21,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     if (!/^\/api\/sessions\/[^/]+\/events/.test(path)) {
       const header = env.TRUSTED_IP_HEADER;
       // ponytail: read single trusted header value, no comma-split — don't trust raw x-forwarded-for chains.
-      const ip =
-        (header ? event.request.headers.get(header) : null) ??
-        event.getClientAddress();
+      const ip = (header ? event.request.headers.get(header) : null) ?? event.getClientAddress();
       const redis = (getContainer().cache as RedisCache).rateLimitClient;
       const { ok, retryAfter } = await checkRateLimit(redis, ip, 300, 60);
       if (!ok) {

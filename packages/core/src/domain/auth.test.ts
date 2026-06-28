@@ -19,15 +19,21 @@ describe("absorbGuest", () => {
     const repo = new FakeUserLinkRepo();
     repo.anonymous.add("anon-1");
 
-    await expect(absorbGuest(repo, { anonUserId: "anon-1" }, "real-1")).resolves.toEqual({ reassigned: true });
+    await expect(absorbGuest(repo, { anonUserId: "anon-1" }, "real-1")).resolves.toEqual({
+      reassigned: true,
+    });
     expect(repo.reassigned).toEqual([{ anonymousUserId: "anon-1", newUserId: "real-1" }]);
   });
 
   it("does not reassign the current user or a non-anonymous user", async () => {
     const repo = new FakeUserLinkRepo();
 
-    await expect(absorbGuest(repo, { anonUserId: "real-1" }, "real-1")).resolves.toEqual({ reassigned: false });
-    await expect(absorbGuest(repo, { anonUserId: "other-real" }, "real-1")).resolves.toEqual({ reassigned: false });
+    await expect(absorbGuest(repo, { anonUserId: "real-1" }, "real-1")).resolves.toEqual({
+      reassigned: false,
+    });
+    await expect(absorbGuest(repo, { anonUserId: "other-real" }, "real-1")).resolves.toEqual({
+      reassigned: false,
+    });
     expect(repo.reassigned).toEqual([]);
   });
 
@@ -36,7 +42,9 @@ describe("absorbGuest", () => {
     repo.anonymous.add("anon-1");
     repo.anonymous.add("anon-2");
 
-    await expect(absorbGuest(repo, { anonUserId: "anon-1" }, "anon-2")).resolves.toEqual({ reassigned: false });
+    await expect(absorbGuest(repo, { anonUserId: "anon-1" }, "anon-2")).resolves.toEqual({
+      reassigned: false,
+    });
     expect(repo.reassigned).toEqual([]);
   });
 });

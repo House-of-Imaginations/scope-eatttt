@@ -1,6 +1,6 @@
 import { PUBLIC_USE_MOCK } from "$env/static/public";
-import type { AppEvent } from "@scope/contract";
 import { parsePublicEnv } from "@scope/config";
+import type { AppEvent } from "@scope/contract";
 import { subscribeMockEvents } from "./mockHandler";
 
 export interface SseHandlers {

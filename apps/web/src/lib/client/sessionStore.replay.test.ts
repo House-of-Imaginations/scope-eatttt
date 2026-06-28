@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import type { AppEvent } from "@scope/contract";
+import { describe, expect, it, vi } from "vitest";
 
 const mock = vi.hoisted(() => {
   let handlers: {

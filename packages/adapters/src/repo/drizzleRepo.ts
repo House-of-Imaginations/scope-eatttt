@@ -1,4 +1,9 @@
-import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
+import type {
+  Candidate,
+  DashboardHistoryItem,
+  DashboardSessionSummary,
+  Restaurant,
+} from "@scope/contract";
 import type {
   AddMemberRecord,
   CandidateTally,
@@ -13,8 +18,17 @@ import type {
   Tally,
   UserLinkRepo,
 } from "@scope/core";
-import type { Candidate, DashboardHistoryItem, DashboardSessionSummary, Restaurant } from "@scope/contract";
-import { lunchSession, outboxEvent, pollCandidate, restaurantCache, sessionMember, swipe, user, vote } from "@scope/db";
+import {
+  lunchSession,
+  outboxEvent,
+  pollCandidate,
+  restaurantCache,
+  sessionMember,
+  swipe,
+  user,
+  vote,
+} from "@scope/db";
+import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
 
 type Executor = {
   transaction<T>(fn: (tx: TransactionExecutor) => Promise<T>): Promise<T>;
@@ -149,87 +163,103 @@ export class DrizzleSessionRepo
   }
 
   async createSession(tx: TransactionExecutor, input: CreateSessionRecord): Promise<void> {
-    await insert(tx, lunchSession)
-      .values({
-        id: input.id,
-        joinCode: input.joinCode,
-        title: input.title,
-        hostUserId: input.hostUserId,
-        lat: input.lat,
-        lng: input.lng,
-        radiusM: input.radiusM,
-        cuisines: input.cuisines,
-        pollDurationSec: input.pollDurationSec,
-        promoteThreshold: input.promoteThreshold,
-        createdAt: new Date(input.createdAt),
-        updatedAt: new Date(input.createdAt),
-      });
+    await insert(tx, lunchSession).values({
+      id: input.id,
+      joinCode: input.joinCode,
+      title: input.title,
+      hostUserId: input.hostUserId,
+      lat: input.lat,
+      lng: input.lng,
+      radiusM: input.radiusM,
+      cuisines: input.cuisines,
+      pollDurationSec: input.pollDurationSec,
+      promoteThreshold: input.promoteThreshold,
+      createdAt: new Date(input.createdAt),
+      updatedAt: new Date(input.createdAt),
+    });
   }
 
   async addMember(tx: TransactionExecutor, input: AddMemberRecord): Promise<void> {
-    await insert(tx, sessionMember)
-      .values({
-        id: input.id,
-        sessionId: input.sessionId,
-        userId: input.userId,
-        displayName: input.displayName,
-        isHost: input.isHost,
-        joinedAt: new Date(input.joinedAt),
-      });
+    await insert(tx, sessionMember).values({
+      id: input.id,
+      sessionId: input.sessionId,
+      userId: input.userId,
+      displayName: input.displayName,
+      isHost: input.isHost,
+      joinedAt: new Date(input.joinedAt),
+    });
   }
 
   async getSession(tx: TransactionExecutor, sessionId: string): Promise<SessionSummary | null> {
-    const row = await firstRow<SessionRow>(select(tx, sessionSummaryColumns)
-      .from(lunchSession)
-      .where(eq(lunchSession.id, sessionId))
-      .limit(1));
+    const row = await firstRow<SessionRow>(
+      select(tx, sessionSummaryColumns)
+        .from(lunchSession)
+        .where(eq(lunchSession.id, sessionId))
+        .limit(1),
+    );
     return row ? sessionSummary(row) : null;
   }
 
-  async getSessionByJoinCode(tx: TransactionExecutor, joinCode: string): Promise<SessionSummary | null> {
-    const row = await firstRow<SessionRow>(select(tx, sessionSummaryColumns)
-      .from(lunchSession)
-      .where(eq(lunchSession.joinCode, joinCode))
-      .limit(1));
+  async getSessionByJoinCode(
+    tx: TransactionExecutor,
+    joinCode: string,
+  ): Promise<SessionSummary | null> {
+    const row = await firstRow<SessionRow>(
+      select(tx, sessionSummaryColumns)
+        .from(lunchSession)
+        .where(eq(lunchSession.joinCode, joinCode))
+        .limit(1),
+    );
     return row ? sessionSummary(row) : null;
   }
 
   async listMembers(tx: TransactionExecutor, sessionId: string): Promise<AddMemberRecord[]> {
-    const rows = await queryRows<MemberRow>(select(tx, {
-      id: sessionMember.id,
-      sessionId: sessionMember.sessionId,
-      userId: sessionMember.userId,
-      displayName: sessionMember.displayName,
-      image: user.image,
-      isHost: sessionMember.isHost,
-      radiusM: sessionMember.radiusM,
-      joinedAt: sessionMember.joinedAt,
-    })
-      .from(sessionMember)
-      .leftJoin(user, eq(user.id, sessionMember.userId))
-      .where(eq(sessionMember.sessionId, sessionId)));
+    const rows = await queryRows<MemberRow>(
+      select(tx, {
+        id: sessionMember.id,
+        sessionId: sessionMember.sessionId,
+        userId: sessionMember.userId,
+        displayName: sessionMember.displayName,
+        image: user.image,
+        isHost: sessionMember.isHost,
+        radiusM: sessionMember.radiusM,
+        joinedAt: sessionMember.joinedAt,
+      })
+        .from(sessionMember)
+        .leftJoin(user, eq(user.id, sessionMember.userId))
+        .where(eq(sessionMember.sessionId, sessionId)),
+    );
     return rows.map(memberRecord);
   }
 
-  async listSessionsForUser(tx: TransactionExecutor, userId: string): Promise<DashboardHistoryItem[]> {
-    const rows = await queryRows<DashboardHistoryRow>(select(tx, {
-      id: lunchSession.id,
-      title: lunchSession.title,
-      joinCode: lunchSession.joinCode,
-      status: lunchSession.status,
-      createdAt: lunchSession.createdAt,
-      winnerName: restaurantCache.name,
-    })
-      .from(lunchSession)
-      .leftJoin(sessionMember, eq(sessionMember.sessionId, lunchSession.id))
-      .leftJoin(pollCandidate, eq(pollCandidate.id, lunchSession.winnerCandidateId))
-      .leftJoin(restaurantCache, eq(restaurantCache.id, pollCandidate.restaurantId))
-      .where(eq(sessionMember.userId, userId))
-      .orderBy(desc(lunchSession.createdAt)));
+  async listSessionsForUser(
+    tx: TransactionExecutor,
+    userId: string,
+  ): Promise<DashboardHistoryItem[]> {
+    const rows = await queryRows<DashboardHistoryRow>(
+      select(tx, {
+        id: lunchSession.id,
+        title: lunchSession.title,
+        joinCode: lunchSession.joinCode,
+        status: lunchSession.status,
+        createdAt: lunchSession.createdAt,
+        winnerName: restaurantCache.name,
+      })
+        .from(lunchSession)
+        .leftJoin(sessionMember, eq(sessionMember.sessionId, lunchSession.id))
+        .leftJoin(pollCandidate, eq(pollCandidate.id, lunchSession.winnerCandidateId))
+        .leftJoin(restaurantCache, eq(restaurantCache.id, pollCandidate.restaurantId))
+        .where(eq(sessionMember.userId, userId))
+        .orderBy(desc(lunchSession.createdAt)),
+    );
     return uniqueById(rows.map(dashboardHistoryItem));
   }
 
-  async getSessionSummary(tx: TransactionExecutor, sessionId: string, userId: string): Promise<DashboardSessionSummary | null> {
+  async getSessionSummary(
+    tx: TransactionExecutor,
+    sessionId: string,
+    userId: string,
+  ): Promise<DashboardSessionSummary | null> {
     const session = await this.getSession(tx, sessionId);
     if (!session) {
       return null;
@@ -241,7 +271,9 @@ export class DrizzleSessionRepo
     }
 
     const candidates = await this.listCandidateResults(tx, sessionId);
-    const winnerName = candidates.find((candidate) => candidate.id === session.winnerCandidateId)?.restaurant.name ?? null;
+    const winnerName =
+      candidates.find((candidate) => candidate.id === session.winnerCandidateId)?.restaurant.name ??
+      null;
     return {
       id: session.id,
       title: session.title ?? null,
@@ -254,76 +286,119 @@ export class DrizzleSessionRepo
   }
 
   async insertOutbox(tx: TransactionExecutor, event: OutboxWrite): Promise<string> {
-    const row = await firstRow<IdRow>(insert(tx, outboxEvent)
-      .values({
-        aggregate: event.aggregate,
-        aggregateId: event.aggregateId,
-        type: event.type,
-        payload: event.payload,
-      })
-      .returning({ id: outboxEvent.id }));
+    const row = await firstRow<IdRow>(
+      insert(tx, outboxEvent)
+        .values({
+          aggregate: event.aggregate,
+          aggregateId: event.aggregateId,
+          type: event.type,
+          payload: event.payload,
+        })
+        .returning({ id: outboxEvent.id }),
+    );
     return requireReturnedId(row, "outbox_event");
   }
 
-  async upsertRestaurants(tx: TransactionExecutor, records: RestaurantCacheRecord[]): Promise<void> {
+  async upsertRestaurants(
+    tx: TransactionExecutor,
+    records: RestaurantCacheRecord[],
+  ): Promise<void> {
     for (const record of records) {
       const row = toRestaurantCacheRow(record);
-      await insert(tx, restaurantCache)
-        .values(row)
-        .onConflictDoUpdate({
-          target: restaurantCache.id,
-          set: row,
-        });
+      await insert(tx, restaurantCache).values(row).onConflictDoUpdate({
+        target: restaurantCache.id,
+        set: row,
+      });
     }
   }
 
   async getRestaurant(tx: TransactionExecutor, restaurantId: string): Promise<Restaurant | null> {
-    const row = await firstRow<RestaurantRow>(select(tx, restaurantColumns)
-      .from(restaurantCache)
-      .where(eq(restaurantCache.id, restaurantId))
-      .limit(1));
+    const row = await firstRow<RestaurantRow>(
+      select(tx, restaurantColumns)
+        .from(restaurantCache)
+        .where(eq(restaurantCache.id, restaurantId))
+        .limit(1),
+    );
     return row ? restaurantRecord(row) : null;
   }
 
-  async listDeckRestaurants(tx: TransactionExecutor, sessionId: string, memberId: string, limit: number): Promise<Restaurant[]> {
-    const rows = await queryRows<RestaurantRow>(select(tx, restaurantColumns)
-      .from(restaurantCache)
-      .leftJoin(
-        swipe,
-        and(eq(swipe.restaurantId, restaurantCache.id), eq(swipe.sessionId, sessionId), eq(swipe.memberId, memberId)),
-      )
-      .where(isNull(swipe.id))
-      .orderBy(desc(restaurantCache.cachedAt))
-      .limit(limit));
+  async listDeckRestaurants(
+    tx: TransactionExecutor,
+    sessionId: string,
+    memberId: string,
+    limit: number,
+  ): Promise<Restaurant[]> {
+    const rows = await queryRows<RestaurantRow>(
+      select(tx, restaurantColumns)
+        .from(restaurantCache)
+        .leftJoin(
+          swipe,
+          and(
+            eq(swipe.restaurantId, restaurantCache.id),
+            eq(swipe.sessionId, sessionId),
+            eq(swipe.memberId, memberId),
+          ),
+        )
+        .where(isNull(swipe.id))
+        .orderBy(desc(restaurantCache.cachedAt))
+        .limit(limit),
+    );
     return rows.map(restaurantRecord);
   }
 
   async recordSwipe(
     tx: TransactionExecutor,
-    input: { sessionId: string; userId: string; memberId: string; restaurantId: string; decision: "accept" | "reject"; swipedAt: string },
+    input: {
+      sessionId: string;
+      userId: string;
+      memberId: string;
+      restaurantId: string;
+      decision: "accept" | "reject";
+      swipedAt: string;
+    },
   ): Promise<{ created: boolean }> {
-    const rows = await queryRows<IdRow>(insert(tx, swipe)
-      .values({
-        sessionId: input.sessionId,
-        userId: input.userId,
-        memberId: input.memberId,
-        restaurantId: input.restaurantId,
-        decision: input.decision,
-        createdAt: new Date(input.swipedAt),
-      })
-      .onConflictDoNothing({ target: [swipe.sessionId, swipe.memberId, swipe.restaurantId] })
-      .returning({ id: swipe.id }));
+    const rows = await queryRows<IdRow>(
+      insert(tx, swipe)
+        .values({
+          sessionId: input.sessionId,
+          userId: input.userId,
+          memberId: input.memberId,
+          restaurantId: input.restaurantId,
+          decision: input.decision,
+          createdAt: new Date(input.swipedAt),
+        })
+        .onConflictDoNothing({
+          target: [swipe.sessionId, swipe.memberId, swipe.restaurantId],
+        })
+        .returning({ id: swipe.id }),
+    );
     return { created: rows.length > 0 };
   }
 
-  async countAccepts(tx: TransactionExecutor, sessionId: string, restaurantId: string): Promise<number> {
-    const row = await firstRow<CountRow>(select(tx, { count: count() })
-      .from(swipe)
-      .where(and(eq(swipe.sessionId, sessionId), eq(swipe.restaurantId, restaurantId), eq(swipe.decision, "accept"))));
+  async countAccepts(
+    tx: TransactionExecutor,
+    sessionId: string,
+    restaurantId: string,
+  ): Promise<number> {
+    const row = await firstRow<CountRow>(
+      select(tx, { count: count() })
+        .from(swipe)
+        .where(
+          and(
+            eq(swipe.sessionId, sessionId),
+            eq(swipe.restaurantId, restaurantId),
+            eq(swipe.decision, "accept"),
+          ),
+        ),
+    );
     return Number(row?.count ?? 0);
   }
 
-  async isCandidate(tx: TransactionExecutor, sessionId: string, restaurantId: string): Promise<boolean> {
+  async isCandidate(
+    tx: TransactionExecutor,
+    sessionId: string,
+    restaurantId: string,
+  ): Promise<boolean> {
     return (await findCandidateId(tx, sessionId, restaurantId)) !== undefined;
   }
 
@@ -331,14 +406,18 @@ export class DrizzleSessionRepo
     tx: TransactionExecutor,
     input: { sessionId: string; restaurantId: string; promotedAt: string },
   ): Promise<{ candidateId: string }> {
-    const inserted = await firstRow<IdRow>(insert(tx, pollCandidate)
-      .values({
-        sessionId: input.sessionId,
-        restaurantId: input.restaurantId,
-        promotedAt: new Date(input.promotedAt),
-      })
-      .onConflictDoNothing({ target: [pollCandidate.sessionId, pollCandidate.restaurantId] })
-      .returning({ id: pollCandidate.id }));
+    const inserted = await firstRow<IdRow>(
+      insert(tx, pollCandidate)
+        .values({
+          sessionId: input.sessionId,
+          restaurantId: input.restaurantId,
+          promotedAt: new Date(input.promotedAt),
+        })
+        .onConflictDoNothing({
+          target: [pollCandidate.sessionId, pollCandidate.restaurantId],
+        })
+        .returning({ id: pollCandidate.id }),
+    );
 
     if (inserted) {
       return { candidateId: inserted.id };
@@ -348,23 +427,34 @@ export class DrizzleSessionRepo
     return { candidateId: requireReturnedId(existing, "poll_candidate") };
   }
 
-  async updateMemberRadius(tx: TransactionExecutor, sessionId: string, memberId: string, radiusM: number): Promise<void> {
+  async updateMemberRadius(
+    tx: TransactionExecutor,
+    sessionId: string,
+    memberId: string,
+    radiusM: number,
+  ): Promise<void> {
     await update(tx, sessionMember)
       .set({ radiusM })
       .where(and(eq(sessionMember.sessionId, sessionId), eq(sessionMember.id, memberId)));
   }
 
   async isHost(tx: TransactionExecutor, sessionId: string, userId: string): Promise<boolean> {
-    const row = await firstRow<HostRow>(select(tx, { isHost: sessionMember.isHost })
-      .from(sessionMember)
-      .where(and(eq(sessionMember.sessionId, sessionId), eq(sessionMember.userId, userId)))
-      .limit(1));
+    const row = await firstRow<HostRow>(
+      select(tx, { isHost: sessionMember.isHost })
+        .from(sessionMember)
+        .where(and(eq(sessionMember.sessionId, sessionId), eq(sessionMember.userId, userId)))
+        .limit(1),
+    );
     return row?.isHost ?? false;
   }
 
   async startPoll(tx: TransactionExecutor, sessionId: string, deadlineAt: string): Promise<void> {
     await update(tx, lunchSession)
-      .set({ status: "polling", pollDeadlineAt: new Date(deadlineAt), updatedAt: new Date(deadlineAt) })
+      .set({
+        status: "polling",
+        pollDeadlineAt: new Date(deadlineAt),
+        updatedAt: new Date(deadlineAt),
+      })
       .where(eq(lunchSession.id, sessionId));
   }
 
@@ -376,7 +466,13 @@ export class DrizzleSessionRepo
 
   async upsertVote(
     tx: TransactionExecutor,
-    input: { sessionId: string; candidateId: string; userId: string; memberId: string; value: 1 | -1 },
+    input: {
+      sessionId: string;
+      candidateId: string;
+      userId: string;
+      memberId: string;
+      value: 1 | -1;
+    },
   ): Promise<void> {
     await insert(tx, vote)
       .values(input)
@@ -386,71 +482,94 @@ export class DrizzleSessionRepo
       });
   }
 
-  async candidateBelongsToSession(tx: TransactionExecutor, sessionId: string, candidateId: string): Promise<boolean> {
-    const row = await firstRow<IdRow>(select(tx, { id: pollCandidate.id })
-      .from(pollCandidate)
-      .where(and(eq(pollCandidate.id, candidateId), eq(pollCandidate.sessionId, sessionId)))
-      .limit(1));
+  async candidateBelongsToSession(
+    tx: TransactionExecutor,
+    sessionId: string,
+    candidateId: string,
+  ): Promise<boolean> {
+    const row = await firstRow<IdRow>(
+      select(tx, { id: pollCandidate.id })
+        .from(pollCandidate)
+        .where(and(eq(pollCandidate.id, candidateId), eq(pollCandidate.sessionId, sessionId)))
+        .limit(1),
+    );
     return row !== undefined;
   }
 
   async tally(tx: TransactionExecutor, candidateId: string): Promise<Tally> {
-    const row = await firstRow<Tally>(select(tx, {
-      up: sql<number>`cast(count(*) filter (where ${vote.value} = 1) as int)`,
-      down: sql<number>`cast(count(*) filter (where ${vote.value} = -1) as int)`,
-      net: sql<number>`cast(coalesce(sum(${vote.value}), 0) as int)`,
-    })
-      .from(vote)
-      .where(eq(vote.candidateId, candidateId)));
-    return { up: Number(row?.up ?? 0), down: Number(row?.down ?? 0), net: Number(row?.net ?? 0) };
+    const row = await firstRow<Tally>(
+      select(tx, {
+        up: sql<number>`cast(count(*) filter (where ${vote.value} = 1) as int)`,
+        down: sql<number>`cast(count(*) filter (where ${vote.value} = -1) as int)`,
+        net: sql<number>`cast(coalesce(sum(${vote.value}), 0) as int)`,
+      })
+        .from(vote)
+        .where(eq(vote.candidateId, candidateId)),
+    );
+    return {
+      up: Number(row?.up ?? 0),
+      down: Number(row?.down ?? 0),
+      net: Number(row?.net ?? 0),
+    };
   }
 
-  async listCandidatesWithTally(tx: TransactionExecutor, sessionId: string): Promise<CandidateTally[]> {
-    const rows = await queryRows<CandidateTallyRow>(select(tx, {
-      id: pollCandidate.id,
-      promotedAt: pollCandidate.promotedAt,
-      net: sql<number>`cast(coalesce(sum(${vote.value}), 0) as int)`,
-    })
-      .from(pollCandidate)
-      .leftJoin(vote, eq(vote.candidateId, pollCandidate.id))
-      .where(eq(pollCandidate.sessionId, sessionId))
-      .groupBy(pollCandidate.id)
-      .orderBy(asc(pollCandidate.promotedAt)));
+  async listCandidatesWithTally(
+    tx: TransactionExecutor,
+    sessionId: string,
+  ): Promise<CandidateTally[]> {
+    const rows = await queryRows<CandidateTallyRow>(
+      select(tx, {
+        id: pollCandidate.id,
+        promotedAt: pollCandidate.promotedAt,
+        net: sql<number>`cast(coalesce(sum(${vote.value}), 0) as int)`,
+      })
+        .from(pollCandidate)
+        .leftJoin(vote, eq(vote.candidateId, pollCandidate.id))
+        .where(eq(pollCandidate.sessionId, sessionId))
+        .groupBy(pollCandidate.id)
+        .orderBy(asc(pollCandidate.promotedAt)),
+    );
 
     return rows.map(candidateTally);
   }
 
   async listCandidateResults(tx: TransactionExecutor, sessionId: string): Promise<Candidate[]> {
-    const rows = await queryRows<CandidateResultRow>(select(tx, {
-      candidateId: pollCandidate.id,
-      promotedAt: pollCandidate.promotedAt,
-      ...restaurantColumns,
-      up: sql<number>`cast(count(*) filter (where ${vote.value} = 1) as int)`,
-      down: sql<number>`cast(count(*) filter (where ${vote.value} = -1) as int)`,
-      net: sql<number>`cast(coalesce(sum(${vote.value}), 0) as int)`,
-    })
-      .from(pollCandidate)
-      .leftJoin(restaurantCache, eq(restaurantCache.id, pollCandidate.restaurantId))
-      .leftJoin(vote, eq(vote.candidateId, pollCandidate.id))
-      .where(eq(pollCandidate.sessionId, sessionId))
-      .groupBy(
-        pollCandidate.id,
-        restaurantCache.id,
-        restaurantCache.name,
-        restaurantCache.address,
-        restaurantCache.cuisineTags,
-        restaurantCache.lat,
-        restaurantCache.lng,
-        restaurantCache.rating,
-        restaurantCache.priceLevel,
-        restaurantCache.distanceM,
-      )
-      .orderBy(asc(pollCandidate.promotedAt)));
+    const rows = await queryRows<CandidateResultRow>(
+      select(tx, {
+        candidateId: pollCandidate.id,
+        promotedAt: pollCandidate.promotedAt,
+        ...restaurantColumns,
+        up: sql<number>`cast(count(*) filter (where ${vote.value} = 1) as int)`,
+        down: sql<number>`cast(count(*) filter (where ${vote.value} = -1) as int)`,
+        net: sql<number>`cast(coalesce(sum(${vote.value}), 0) as int)`,
+      })
+        .from(pollCandidate)
+        .leftJoin(restaurantCache, eq(restaurantCache.id, pollCandidate.restaurantId))
+        .leftJoin(vote, eq(vote.candidateId, pollCandidate.id))
+        .where(eq(pollCandidate.sessionId, sessionId))
+        .groupBy(
+          pollCandidate.id,
+          restaurantCache.id,
+          restaurantCache.name,
+          restaurantCache.address,
+          restaurantCache.cuisineTags,
+          restaurantCache.lat,
+          restaurantCache.lng,
+          restaurantCache.rating,
+          restaurantCache.priceLevel,
+          restaurantCache.distanceM,
+        )
+        .orderBy(asc(pollCandidate.promotedAt)),
+    );
 
     return rows.map(candidateResult);
   }
 
-  async closePoll(tx: TransactionExecutor, sessionId: string, winnerCandidateId: string): Promise<boolean> {
+  async closePoll(
+    tx: TransactionExecutor,
+    sessionId: string,
+    winnerCandidateId: string,
+  ): Promise<boolean> {
     const rows = await update(tx, lunchSession)
       .set({ status: "decided", winnerCandidateId, updatedAt: new Date() })
       .where(and(eq(lunchSession.id, sessionId), eq(lunchSession.status, "polling")))
@@ -466,20 +585,18 @@ export class DrizzleSessionRepo
       await update(tx, sessionMember)
         .set({ userId: newUserId })
         .where(eq(sessionMember.userId, anonymousUserId));
-      await update(tx, swipe)
-        .set({ userId: newUserId })
-        .where(eq(swipe.userId, anonymousUserId));
-      await update(tx, vote)
-        .set({ userId: newUserId })
-        .where(eq(vote.userId, anonymousUserId));
+      await update(tx, swipe).set({ userId: newUserId }).where(eq(swipe.userId, anonymousUserId));
+      await update(tx, vote).set({ userId: newUserId }).where(eq(vote.userId, anonymousUserId));
     });
   }
 
   async isAnonymousUser(userId: string): Promise<boolean> {
-    const row = await firstRow<AnonymousUserRow>(select(this.db, { isAnonymous: user.isAnonymous })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1));
+    const row = await firstRow<AnonymousUserRow>(
+      select(this.db, { isAnonymous: user.isAnonymous })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1),
+    );
     return row?.isAnonymous === true;
   }
 }
@@ -496,11 +613,19 @@ function update(tx: TransactionExecutor, table: unknown): UpdateBuilder {
   return tx.update(table) as UpdateBuilder;
 }
 
-function findCandidateId(tx: TransactionExecutor, sessionId: string, restaurantId: string): Promise<IdRow | undefined> {
-  return firstRow<IdRow>(select(tx, { id: pollCandidate.id })
-    .from(pollCandidate)
-    .where(and(eq(pollCandidate.sessionId, sessionId), eq(pollCandidate.restaurantId, restaurantId)))
-    .limit(1));
+function findCandidateId(
+  tx: TransactionExecutor,
+  sessionId: string,
+  restaurantId: string,
+): Promise<IdRow | undefined> {
+  return firstRow<IdRow>(
+    select(tx, { id: pollCandidate.id })
+      .from(pollCandidate)
+      .where(
+        and(eq(pollCandidate.sessionId, sessionId), eq(pollCandidate.restaurantId, restaurantId)),
+      )
+      .limit(1),
+  );
 }
 
 interface InsertBuilder {
@@ -559,8 +684,12 @@ function sessionSummary(row: SessionRow): SessionSummary {
     ...(row.cuisines === undefined ? {} : { cuisines: row.cuisines }),
     ...(row.pollDurationSec === undefined ? {} : { pollDurationSec: row.pollDurationSec }),
     ...(row.promoteThreshold === undefined ? {} : { promoteThreshold: row.promoteThreshold }),
-    ...(row.pollDeadlineAt === undefined || row.pollDeadlineAt === null ? {} : { pollDeadlineAt: toIso(row.pollDeadlineAt) }),
-    ...(row.winnerCandidateId === undefined || row.winnerCandidateId === null ? {} : { winnerCandidateId: row.winnerCandidateId }),
+    ...(row.pollDeadlineAt === undefined || row.pollDeadlineAt === null
+      ? {}
+      : { pollDeadlineAt: toIso(row.pollDeadlineAt) }),
+    ...(row.winnerCandidateId === undefined || row.winnerCandidateId === null
+      ? {}
+      : { winnerCandidateId: row.winnerCandidateId }),
   };
 }
 

@@ -1,52 +1,55 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
-  import { page } from "$app/state";
-  import { getCurrentUser } from "$lib/client/authClient";
-  import { storeSessionMember } from "$lib/client/memberSession";
-  import { api } from "$lib/client/orpc";
-  import { Button } from "@scope/ui";
+import { goto } from "$app/navigation";
+import { page } from "$app/state";
+import { getCurrentUser } from "$lib/client/authClient";
+import { storeSessionMember } from "$lib/client/memberSession";
+import { api } from "$lib/client/orpc";
+import { Button } from "@scope/ui";
 
-  // ponytail: route param read via $app/state (SvelteKit 2 / Svelte 5 runes)
-  const code = $derived(page.params.code ?? "");
+// ponytail: route param read via $app/state (SvelteKit 2 / Svelte 5 runes)
+const code = $derived(page.params.code ?? "");
 
-  let displayName = $state("");
-  let loading = $state(false);
-  let error = $state<string | null>(null);
-  // Real (non-anon) account name once the mount check resolves; null = guest path.
-  let accountName = $state<string | null>(null);
+const displayName = $state("");
+let loading = $state(false);
+let error = $state<string | null>(null);
+// Real (non-anon) account name once the mount check resolves; null = guest path.
+let accountName = $state<string | null>(null);
 
-  // ponytail: reuse session.join; logged-in path just prefills displayName from the account.
-  $effect(() => {
-    getCurrentUser().then((user) => {
-      if (user && !user.isAnonymous) accountName = user.name;
-    });
-  });
+// ponytail: reuse session.join; logged-in path just prefills displayName from the account.
+$effect(() => {
+	getCurrentUser().then((user) => {
+		if (user && !user.isAnonymous) accountName = user.name;
+	});
+});
 
-  const canSubmit = $derived(displayName.trim().length > 0 && !loading);
+const canSubmit = $derived(displayName.trim().length > 0 && !loading);
 
-  // Shared join → store → navigate. Both paths feed it a display name.
-  async function join(name: string) {
-    error = null;
-    loading = true;
-    try {
-      const result = await api.session.join({ joinCode: code, displayName: name });
-      storeSessionMember(result.sessionId, result.memberId);
-      await goto(`/s/${result.sessionId}`);
-    } catch (err) {
-      error =
-        err instanceof Error
-          ? err.message
-          : "Couldn't join — check the code and try again.";
-    } finally {
-      loading = false;
-    }
-  }
+// Shared join → store → navigate. Both paths feed it a display name.
+async function join(name: string) {
+	error = null;
+	loading = true;
+	try {
+		const result = await api.session.join({
+			joinCode: code,
+			displayName: name,
+		});
+		storeSessionMember(result.sessionId, result.memberId);
+		await goto(`/s/${result.sessionId}`);
+	} catch (err) {
+		error =
+			err instanceof Error
+				? err.message
+				: "Couldn't join — check the code and try again.";
+	} finally {
+		loading = false;
+	}
+}
 
-  async function handleSubmit(e: SubmitEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
-    await join(displayName.trim());
-  }
+async function handleSubmit(e: SubmitEvent) {
+	e.preventDefault();
+	if (!canSubmit) return;
+	await join(displayName.trim());
+}
 </script>
 
 <main class="page">

@@ -1,11 +1,11 @@
+import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { DrizzleSessionRepo, RedisSecondaryStorage } from "@scope/adapters";
+import { type Env, loadEnv } from "@scope/config";
+import type { UserLinkRepo } from "@scope/core";
+import { account, createDatabaseClients, session, user, verification } from "@scope/db";
 import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth";
 import { anonymous } from "better-auth/plugins";
-import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { createDatabaseClients, account, session, user, verification } from "@scope/db";
-import { loadEnv, type Env } from "@scope/config";
-import { DrizzleSessionRepo, RedisSecondaryStorage } from "@scope/adapters";
-import type { UserLinkRepo } from "@scope/core";
 
 type Database = ReturnType<typeof createDatabaseClients>["db"];
 
@@ -17,7 +17,10 @@ export interface CreateAuthOptions {
   secondaryStorage?: BetterAuthOptions["secondaryStorage"];
   rateLimit?: BetterAuthOptions["rateLimit"];
   advanced?: BetterAuthOptions["advanced"];
-  onLinkAnonymousAccount?: (input: { anonymousUserId: string; newUserId: string }) => Promise<void> | void;
+  onLinkAnonymousAccount?: (input: {
+    anonymousUserId: string;
+    newUserId: string;
+  }) => Promise<void> | void;
 }
 
 export function createAuth(options: CreateAuthOptions) {
@@ -25,7 +28,9 @@ export function createAuth(options: CreateAuthOptions) {
     database: options.database,
     secret: options.secret,
     baseURL: options.baseURL,
-    ...(options.secondaryStorage === undefined ? {} : { secondaryStorage: options.secondaryStorage }),
+    ...(options.secondaryStorage === undefined
+      ? {}
+      : { secondaryStorage: options.secondaryStorage }),
     ...(options.rateLimit === undefined ? {} : { rateLimit: options.rateLimit }),
     ...(options.advanced === undefined ? {} : { advanced: options.advanced }),
     emailAndPassword: {
@@ -61,24 +66,28 @@ export function createAuthOptionsFromEnv(
   onLinkAnonymousAccount?: CreateAuthOptions["onLinkAnonymousAccount"],
   secondaryStorage?: CreateAuthOptions["secondaryStorage"],
 ): CreateAuthOptions {
-  const rateLimit = secondaryStorage === undefined
-    ? undefined
-    : {
-        enabled: env.RATE_LIMIT_ENABLED ?? process.env.NODE_ENV === "production",
-        window: 60,
-        max: 100,
-        storage: "secondary-storage",
-        customRules: {
-          "/sign-in/email": { window: 60, max: 10 },
-          "/sign-up/email": { window: 60, max: 10 },
-          "/sign-in/anonymous": { window: 60, max: 10 },
-          "/get-session": false,
-        },
-      } satisfies BetterAuthOptions["rateLimit"];
+  const rateLimit =
+    secondaryStorage === undefined
+      ? undefined
+      : ({
+          enabled: env.RATE_LIMIT_ENABLED ?? process.env.NODE_ENV === "production",
+          window: 60,
+          max: 100,
+          storage: "secondary-storage",
+          customRules: {
+            "/sign-in/email": { window: 60, max: 10 },
+            "/sign-up/email": { window: 60, max: 10 },
+            "/sign-in/anonymous": { window: 60, max: 10 },
+            "/get-session": false,
+          },
+        } satisfies BetterAuthOptions["rateLimit"]);
   const trustedIpHeader = env.TRUSTED_IP_HEADER;
-  const advanced = trustedIpHeader === undefined
-    ? undefined
-    : { ipAddress: { ipAddressHeaders: [trustedIpHeader] } } satisfies BetterAuthOptions["advanced"];
+  const advanced =
+    trustedIpHeader === undefined
+      ? undefined
+      : ({
+          ipAddress: { ipAddressHeaders: [trustedIpHeader] },
+        } satisfies BetterAuthOptions["advanced"]);
 
   return {
     database,
@@ -100,19 +109,31 @@ export function createAuthOptionsFromEnv(
 
 export function createAuthFromEnv(env: Env = loadEnv()) {
   const { db } = createDatabaseClients(env);
-  return createAuthFromDatabase(env, db, new DrizzleSessionRepo(db), RedisSecondaryStorage.fromUrl(env.REDIS_URL));
+  return createAuthFromDatabase(
+    env,
+    db,
+    new DrizzleSessionRepo(db),
+    RedisSecondaryStorage.fromUrl(env.REDIS_URL),
+  );
 }
 
-export function createAuthFromDatabase(env: Env, db: Database, userLinks: UserLinkRepo, secondaryStorage?: CreateAuthOptions["secondaryStorage"]) {
-  return createAuth(createAuthOptionsFromEnv(
-    env,
-    drizzleAdapter(db, {
-      provider: "pg",
-      schema: { user, session, account, verification },
-    }),
-    ({ anonymousUserId, newUserId }) => userLinks.reassignUserRows(anonymousUserId, newUserId),
-    secondaryStorage,
-  ));
+export function createAuthFromDatabase(
+  env: Env,
+  db: Database,
+  userLinks: UserLinkRepo,
+  secondaryStorage?: CreateAuthOptions["secondaryStorage"],
+) {
+  return createAuth(
+    createAuthOptionsFromEnv(
+      env,
+      drizzleAdapter(db, {
+        provider: "pg",
+        schema: { user, session, account, verification },
+      }),
+      ({ anonymousUserId, newUserId }) => userLinks.reassignUserRows(anonymousUserId, newUserId),
+      secondaryStorage,
+    ),
+  );
 }
 
 let authInstance: ReturnType<typeof createAuth> | undefined;

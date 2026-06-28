@@ -24,12 +24,12 @@
  *   pnpm --filter web exec playwright test -c playwright.real.config.ts e2e-real
  */
 
-import { test, expect, type Page } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
 // Generous timeouts — the worker processes places.fetch async after session create.
 const DECK_TIMEOUT = 30_000; // worker must fetch + cache places before swipe.deck
-const SSE_TIMEOUT = 20_000;  // SSE fanout propagation across contexts
-const NAV_TIMEOUT = 15_000;  // SvelteKit route transitions
+const SSE_TIMEOUT = 20_000; // SSE fanout propagation across contexts
+const NAV_TIMEOUT = 15_000; // SvelteKit route transitions
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -37,11 +37,11 @@ const NAV_TIMEOUT = 15_000;  // SvelteKit route transitions
 
 /** Read the join code from the lobby page (data-testid="lobby-join-code"). */
 async function readJoinCode(page: Page): Promise<string> {
-  const el = page.getByTestId("lobby-join-code");
-  await expect(el).toBeVisible({ timeout: NAV_TIMEOUT });
-  const text = await el.textContent();
-  if (!text?.trim()) throw new Error("lobby-join-code element is empty");
-  return text.trim();
+	const el = page.getByTestId("lobby-join-code");
+	await expect(el).toBeVisible({ timeout: NAV_TIMEOUT });
+	const text = await el.textContent();
+	if (!text?.trim()) throw new Error("lobby-join-code element is empty");
+	return text.trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -49,228 +49,315 @@ async function readJoinCode(page: Page): Promise<string> {
 // ---------------------------------------------------------------------------
 
 test.describe("Real multi-client E2E — live fanout over SSE", () => {
-  test(
-    "promote → vote → winner fanout across two independent browser contexts",
-    async ({ browser }) => {
-      // Total budget: deck load (30s) + SSE fanout steps (5 steps × 20s) + nav + retries.
-      test.setTimeout(180_000);
+	test("promote → vote → winner fanout across two independent browser contexts", async ({
+		browser,
+	}) => {
+		// Total budget: deck load (30s) + SSE fanout steps (5 steps × 20s) + nav + retries.
+		test.setTimeout(180_000);
 
-      // ── 1. Host context: create session ─────────────────────────────────
-      const hostCtx = await browser.newContext({
-        geolocation: { latitude: -33.8688, longitude: 151.2093 },
-        permissions: ["geolocation"],
-      });
-      const hostPage = await hostCtx.newPage();
+		// ── 1. Host context: create session ─────────────────────────────────
+		const hostCtx = await browser.newContext({
+			geolocation: { latitude: -33.8688, longitude: 151.2093 },
+			permissions: ["geolocation"],
+		});
+		const hostPage = await hostCtx.newPage();
 
-      // Navigate to "/" — the layout's onMount bootstrap calls ensureAnonSession()
-      // which POSTs /api/auth/sign-in/anonymous and stores the session cookie.
-      // Wait for the auth response so the cookie is stored before any RPC call.
-      const hostAuthDone = hostPage.waitForResponse(
-        (r: { url(): string; request(): { method(): string } }) => r.url().includes("/api/auth/") && r.request().method() !== "GET",
-        { timeout: NAV_TIMEOUT },
-      );
-      await hostPage.goto("/");
-      await hostAuthDone;
+		// Navigate to "/" — the layout's onMount bootstrap calls ensureAnonSession()
+		// which POSTs /api/auth/sign-in/anonymous and stores the session cookie.
+		// Wait for the auth response so the cookie is stored before any RPC call.
+		const hostAuthDone = hostPage.waitForResponse(
+			(r: { url(): string; request(): { method(): string } }) =>
+				r.url().includes("/api/auth/") && r.request().method() !== "GET",
+			{ timeout: NAV_TIMEOUT },
+		);
+		await hostPage.goto("/");
+		await hostAuthDone;
 
-      // Wait for geolocation to resolve so the form is submittable.
-      await expect(hostPage.getByText(/location detected/i)).toBeVisible({ timeout: NAV_TIMEOUT });
+		// Wait for geolocation to resolve so the form is submittable.
+		await expect(hostPage.getByText(/location detected/i)).toBeVisible({
+			timeout: NAV_TIMEOUT,
+		});
 
-      // Pick "Pizza" cuisine and create session.
-      await hostPage.getByRole("button", { name: /pizza/i }).click();
-      await hostPage.getByRole("button", { name: /start lunch/i }).click();
+		// Pick "Pizza" cuisine and create session.
+		await hostPage.getByRole("button", { name: /pizza/i }).click();
+		await hostPage.getByRole("button", { name: /start lunch/i }).click();
 
-      // Land in lobby.
-      await expect(hostPage).toHaveURL(/\/s\/[0-9a-f-]+/, { timeout: NAV_TIMEOUT });
-      await expect(hostPage.getByRole("heading", { name: /lobby/i })).toBeVisible({ timeout: NAV_TIMEOUT });
+		// Land in lobby.
+		await expect(hostPage).toHaveURL(/\/s\/[0-9a-f-]+/, {
+			timeout: NAV_TIMEOUT,
+		});
+		await expect(hostPage.getByRole("heading", { name: /lobby/i })).toBeVisible(
+			{ timeout: NAV_TIMEOUT },
+		);
 
-      // Read the join code from the lobby.
-      const joinCode = await readJoinCode(hostPage);
-      expect(joinCode.length).toBeGreaterThan(0);
+		// Read the join code from the lobby.
+		const joinCode = await readJoinCode(hostPage);
+		expect(joinCode.length).toBeGreaterThan(0);
 
-      // ── 2. Member context: join via /join/<code> ────────────────────────
-      const memberCtx = await browser.newContext({
-        geolocation: { latitude: -33.8688, longitude: 151.2093 },
-        permissions: ["geolocation"],
-      });
-      const memberPage = await memberCtx.newPage();
+		// ── 2. Member context: join via /join/<code> ────────────────────────
+		const memberCtx = await browser.newContext({
+			geolocation: { latitude: -33.8688, longitude: 151.2093 },
+			permissions: ["geolocation"],
+		});
+		const memberPage = await memberCtx.newPage();
 
-      // Navigate to "/" first so the layout bootstrap fires and sets the member's
-      // anon session cookie — different context = different anonymous user.
-      // Wait for the auth POST response so the cookie is stored before navigating away.
-      const memberAuthDone = memberPage.waitForResponse(
-        (r: { url(): string; request(): { method(): string } }) => r.url().includes("/api/auth/") && r.request().method() !== "GET",
-        { timeout: NAV_TIMEOUT },
-      );
-      await memberPage.goto("/");
-      await memberAuthDone;
+		// Navigate to "/" first so the layout bootstrap fires and sets the member's
+		// anon session cookie — different context = different anonymous user.
+		// Wait for the auth POST response so the cookie is stored before navigating away.
+		const memberAuthDone = memberPage.waitForResponse(
+			(r: { url(): string; request(): { method(): string } }) =>
+				r.url().includes("/api/auth/") && r.request().method() !== "GET",
+			{ timeout: NAV_TIMEOUT },
+		);
+		await memberPage.goto("/");
+		await memberAuthDone;
 
-      await memberPage.goto(`/join/${joinCode}`);
-      await expect(memberPage.getByRole("heading", { name: /you're invited to lunch/i })).toBeVisible({ timeout: NAV_TIMEOUT });
-      await memberPage.getByRole("textbox", { name: /display name/i }).fill("Grace");
-      await memberPage.getByRole("button", { name: /join lunch/i }).click();
+		await memberPage.goto(`/join/${joinCode}`);
+		await expect(
+			memberPage.getByRole("heading", { name: /you're invited to lunch/i }),
+		).toBeVisible({ timeout: NAV_TIMEOUT });
+		await memberPage
+			.getByRole("textbox", { name: /display name/i })
+			.fill("Grace");
+		await memberPage.getByRole("button", { name: /join lunch/i }).click();
 
-      // Member lands in the same session's lobby.
-      await expect(memberPage).toHaveURL(/\/s\/[0-9a-f-]+/, { timeout: NAV_TIMEOUT });
-      await expect(memberPage.getByRole("heading", { name: /lobby/i })).toBeVisible({ timeout: NAV_TIMEOUT });
+		// Member lands in the same session's lobby.
+		await expect(memberPage).toHaveURL(/\/s\/[0-9a-f-]+/, {
+			timeout: NAV_TIMEOUT,
+		});
+		await expect(
+			memberPage.getByRole("heading", { name: /lobby/i }),
+		).toBeVisible({ timeout: NAV_TIMEOUT });
 
-      // Host sees the member appear live (member.joined SSE fanout).
-      await expect(hostPage.getByText(/grace/i)).toBeVisible({ timeout: SSE_TIMEOUT });
+		// Host sees the member appear live (member.joined SSE fanout).
+		await expect(hostPage.getByText(/grace/i)).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
 
-      // ── 3. Host starts swiping; member auto-advances over SSE ────────────
-      // "Start swiping" is a HOST-only control (the member only ever sees
-      // "Waiting for the host to start…"). When the host clicks it, the
-      // session.started event fans out over SSE and the member's screen
-      // transitions to swiping automatically — no member click needed.
-      await hostPage.getByRole("button", { name: /start swiping/i }).click();
+		// ── 3. Host starts swiping; member auto-advances over SSE ────────────
+		// "Start swiping" is a HOST-only control (the member only ever sees
+		// "Waiting for the host to start…"). When the host clicks it, the
+		// session.started event fans out over SSE and the member's screen
+		// transitions to swiping automatically — no member click needed.
+		await hostPage.getByRole("button", { name: /start swiping/i }).click();
 
-      // Host waits for deck to load — worker must have processed places.fetch.
-      await expect(hostPage.getByRole("button", { name: /^accept$/i })).toBeVisible({ timeout: DECK_TIMEOUT });
+		// Host waits for deck to load — worker must have processed places.fetch.
+		await expect(
+			hostPage.getByRole("button", { name: /^accept$/i }),
+		).toBeVisible({ timeout: DECK_TIMEOUT });
 
-      // Member's deck appears via the session.started SSE fanout (no click).
-      await expect(memberPage.getByRole("button", { name: /^accept$/i })).toBeVisible({ timeout: DECK_TIMEOUT });
+		// Member's deck appears via the session.started SSE fanout (no click).
+		await expect(
+			memberPage.getByRole("button", { name: /^accept$/i }),
+		).toBeVisible({ timeout: DECK_TIMEOUT });
 
-      // ── 4. Both ACCEPT the same restaurant (fake-place-1) ───────────────
-      // FakePlaces is deterministic: both decks start with fake-place-1 (first
-      // card for any cuisine+session). Accepting it twice (from two distinct
-      // Better Auth anonymous users) crosses PROMOTE_THRESHOLD=2 → promotion.
+		// ── 4. Both ACCEPT the same restaurant (fake-place-1) ───────────────
+		// FakePlaces is deterministic: both decks start with fake-place-1 (first
+		// card for any cuisine+session). Accepting it twice (from two distinct
+		// Better Auth anonymous users) crosses PROMOTE_THRESHOLD=2 → promotion.
 
-      // Verify both are on the same first card (same restaurant name).
-      const hostCardName = await hostPage.getByTestId("swipe-card-name").textContent();
-      const memberCardName = await memberPage.getByTestId("swipe-card-name").textContent();
-      expect(hostCardName?.trim()).toBeTruthy();
-      // Both decks start at the same place (FakePlaces deterministic by session).
-      expect(hostCardName?.trim()).toEqual(memberCardName?.trim());
+		// Verify both are on the same first card (same restaurant name).
+		const hostCardName = await hostPage
+			.getByTestId("swipe-card-name")
+			.textContent();
+		const memberCardName = await memberPage
+			.getByTestId("swipe-card-name")
+			.textContent();
+		expect(hostCardName?.trim()).toBeTruthy();
+		// Both decks start at the same place (FakePlaces deterministic by session).
+		expect(hostCardName?.trim()).toEqual(memberCardName?.trim());
 
-      // Host accepts first — wait for the RPC to complete (deck advances to card 2)
-      // before member accepts. Without this wait, both accepts can race to the DB
-      // and both read count=1 before either commits → threshold never reached.
-      await hostPage.getByRole("button", { name: /^accept$/i }).click();
-      // Wait for host deck to advance (card name changes) confirming server committed.
-      await expect(hostPage.getByTestId("swipe-card-name")).not.toHaveText(
-        hostCardName!.trim(),
-        { timeout: NAV_TIMEOUT },
-      );
+		// Host accepts first — wait for the RPC to complete (deck advances to card 2)
+		// before member accepts. Without this wait, both accepts can race to the DB
+		// and both read count=1 before either commits → threshold never reached.
+		await hostPage.getByRole("button", { name: /^accept$/i }).click();
+		// Wait for host deck to advance (card name changes) confirming server committed.
+		await expect(hostPage.getByTestId("swipe-card-name")).not.toHaveText(
+			hostCardName!.trim(),
+			{ timeout: NAV_TIMEOUT },
+		);
 
-      // Member accepts — this is the second accept on the same restaurant
-      // → PROMOTE_THRESHOLD=2 hit → restaurant.promoted event fires.
-      await memberPage.getByRole("button", { name: /^accept$/i }).click();
+		// Member accepts — this is the second accept on the same restaurant
+		// → PROMOTE_THRESHOLD=2 hit → restaurant.promoted event fires.
+		await memberPage.getByRole("button", { name: /^accept$/i }).click();
 
-      // ── 5. Assert restaurant.promoted fanout ────────────────────────────
-      // The swipe.decide response carries promoted=true for the second accepter.
-      // The session screen calls flashPromoted() which sets the promote-toast.
-      // We assert on the member side (member's click triggered promotion).
-      await expect(memberPage.getByTestId("promote-toast")).toBeVisible({ timeout: SSE_TIMEOUT });
+		// ── 5. Assert restaurant.promoted fanout ────────────────────────────
+		// The swipe.decide response carries promoted=true for the second accepter.
+		// The session screen calls flashPromoted() which sets the promote-toast.
+		// We assert on the member side (member's click triggered promotion).
+		await expect(memberPage.getByTestId("promote-toast")).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
 
-      // ── 6. Host opens the poll ───────────────────────────────────────────
-      await hostPage.getByRole("button", { name: /open poll/i }).click();
+		// ── 6. Host opens the poll ───────────────────────────────────────────
+		await hostPage.getByRole("button", { name: /open poll/i }).click();
 
-      // Both contexts should transition to the polling screen (poll.opened SSE).
-      await expect(hostPage.getByRole("heading", { name: /vote/i })).toBeVisible({ timeout: SSE_TIMEOUT });
-      await expect(memberPage.getByRole("heading", { name: /vote/i })).toBeVisible({ timeout: SSE_TIMEOUT });
+		// Both contexts should transition to the polling screen (poll.opened SSE).
+		await expect(hostPage.getByRole("heading", { name: /vote/i })).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
+		await expect(
+			memberPage.getByRole("heading", { name: /vote/i }),
+		).toBeVisible({ timeout: SSE_TIMEOUT });
 
-      // Both should see the countdown.
-      await expect(hostPage.getByTestId("poll-countdown")).toBeVisible({ timeout: SSE_TIMEOUT });
-      await expect(memberPage.getByTestId("poll-countdown")).toBeVisible({ timeout: SSE_TIMEOUT });
+		// Both should see the countdown.
+		await expect(hostPage.getByTestId("poll-countdown")).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
+		await expect(memberPage.getByTestId("poll-countdown")).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
 
-      // Both should see candidate vote buttons (hidden test hooks).
-      await expect(hostPage.getByTestId("vote-up").first()).toBeVisible({ timeout: SSE_TIMEOUT });
-      await expect(memberPage.getByTestId("vote-up").first()).toBeVisible({ timeout: SSE_TIMEOUT });
+		// Both should see candidate vote buttons (hidden test hooks).
+		await expect(hostPage.getByTestId("vote-up").first()).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
+		await expect(memberPage.getByTestId("vote-up").first()).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
 
-      // ── 7. Both vote ─────────────────────────────────────────────────────
-      // The vote-up buttons are in .visually-hidden (1×1px, clip:rect(0,0,0,0))
-      // so Playwright's normal click fails (the section intercepts). Use
-      // { force: true } to bypass actionability interception checks on hidden
-      // test hooks — the button is present and the click event fires correctly.
-      // Host upvotes.
-      await hostPage.getByTestId("vote-up").first().click({ force: true });
+		// ── 7. Both vote ─────────────────────────────────────────────────────
+		// The vote-up buttons are in .visually-hidden (1×1px, clip:rect(0,0,0,0))
+		// so Playwright's normal click fails (the section intercepts). Use
+		// { force: true } to bypass actionability interception checks on hidden
+		// test hooks — the button is present and the click event fires correctly.
+		// Host upvotes.
+		await hostPage.getByTestId("vote-up").first().click({ force: true });
 
-      // Member upvotes — vote.cast SSE fires, tally updates live cross-context.
-      await memberPage.getByTestId("vote-up").first().click({ force: true });
+		// Member upvotes — vote.cast SSE fires, tally updates live cross-context.
+		await memberPage.getByTestId("vote-up").first().click({ force: true });
 
-      // Assert voting was accepted: poll heading still visible (no error).
-      await expect(hostPage.getByRole("heading", { name: /vote/i })).toBeVisible();
-      await expect(memberPage.getByRole("heading", { name: /vote/i })).toBeVisible();
+		// Assert voting was accepted: poll heading still visible (no error).
+		await expect(
+			hostPage.getByRole("heading", { name: /vote/i }),
+		).toBeVisible();
+		await expect(
+			memberPage.getByRole("heading", { name: /vote/i }),
+		).toBeVisible();
 
-      // ── 8. Host ends poll → winner (poll.closed SSE fanout) ──────────────
-      await hostPage.getByRole("button", { name: /end poll/i }).click();
+		// ── 8. Host ends poll → winner (poll.closed SSE fanout) ──────────────
+		await hostPage.getByRole("button", { name: /end poll/i }).click();
 
-      // Both contexts should show the winner screen.
-      await expect(hostPage.getByRole("heading", { name: /we have a winner/i })).toBeVisible({ timeout: SSE_TIMEOUT });
-      await expect(memberPage.getByRole("heading", { name: /we have a winner/i })).toBeVisible({ timeout: SSE_TIMEOUT });
+		// Both contexts should show the winner screen.
+		await expect(
+			hostPage.getByRole("heading", { name: /we have a winner/i }),
+		).toBeVisible({ timeout: SSE_TIMEOUT });
+		await expect(
+			memberPage.getByRole("heading", { name: /we have a winner/i }),
+		).toBeVisible({ timeout: SSE_TIMEOUT });
 
-      // Winner card shows the restaurant name (non-empty).
-      const winnerName = await hostPage.locator(".winner-name").textContent();
-      expect(winnerName?.trim()).toBeTruthy();
+		// Winner card shows the restaurant name (non-empty).
+		const winnerName = await hostPage.locator(".winner-name").textContent();
+		expect(winnerName?.trim()).toBeTruthy();
 
-      // Member sees the same winner name (cross-context fanout confirmed).
-      await expect(memberPage.locator(".winner-name")).toHaveText(winnerName!.trim(), { timeout: SSE_TIMEOUT });
+		// Member sees the same winner name (cross-context fanout confirmed).
+		await expect(memberPage.locator(".winner-name")).toHaveText(
+			winnerName!.trim(),
+			{ timeout: SSE_TIMEOUT },
+		);
 
-      // ── Cleanup ───────────────────────────────────────────────────────────
-      await hostCtx.close();
-      await memberCtx.close();
-    },
-  );
+		// ── Cleanup ───────────────────────────────────────────────────────────
+		await hostCtx.close();
+		await memberCtx.close();
+	});
 
-  test(
-    "same-auth browser tabs join as separate members and can promote a candidate",
-    async ({ browser }) => {
-      test.setTimeout(180_000);
+	test("same-auth browser tabs join as separate members and can promote a candidate", async ({
+		browser,
+	}) => {
+		test.setTimeout(180_000);
 
-      const ctx = await browser.newContext({
-        geolocation: { latitude: -33.8688, longitude: 151.2093 },
-        permissions: ["geolocation"],
-      });
+		const ctx = await browser.newContext({
+			geolocation: { latitude: -33.8688, longitude: 151.2093 },
+			permissions: ["geolocation"],
+		});
 
-      const hostPage = await ctx.newPage();
-      const hostAuthDone = hostPage.waitForResponse(
-        (r: { url(): string; request(): { method(): string } }) => r.url().includes("/api/auth/") && r.request().method() !== "GET",
-        { timeout: NAV_TIMEOUT },
-      );
-      await hostPage.goto("/");
-      await hostAuthDone;
-      await expect(hostPage.getByText(/location detected/i)).toBeVisible({ timeout: NAV_TIMEOUT });
-      await hostPage.getByRole("button", { name: /pizza/i }).click();
-      await hostPage.getByRole("button", { name: /start lunch/i }).click();
-      await expect(hostPage.getByRole("heading", { name: /lobby/i })).toBeVisible({ timeout: NAV_TIMEOUT });
-      const joinCode = await readJoinCode(hostPage);
+		const hostPage = await ctx.newPage();
+		const hostAuthDone = hostPage.waitForResponse(
+			(r: { url(): string; request(): { method(): string } }) =>
+				r.url().includes("/api/auth/") && r.request().method() !== "GET",
+			{ timeout: NAV_TIMEOUT },
+		);
+		await hostPage.goto("/");
+		await hostAuthDone;
+		await expect(hostPage.getByText(/location detected/i)).toBeVisible({
+			timeout: NAV_TIMEOUT,
+		});
+		await hostPage.getByRole("button", { name: /pizza/i }).click();
+		await hostPage.getByRole("button", { name: /start lunch/i }).click();
+		await expect(hostPage.getByRole("heading", { name: /lobby/i })).toBeVisible(
+			{ timeout: NAV_TIMEOUT },
+		);
+		const joinCode = await readJoinCode(hostPage);
 
-      const simonPage = await ctx.newPage();
-      await simonPage.goto(`/join/${joinCode}`);
-      await expect(simonPage.getByRole("heading", { name: /you're invited to lunch/i })).toBeVisible({ timeout: NAV_TIMEOUT });
-      await simonPage.getByRole("textbox", { name: /display name/i }).fill("Simon");
-      await simonPage.getByRole("button", { name: /join lunch/i }).click();
-      await expect(simonPage.getByRole("heading", { name: /lobby/i })).toBeVisible({ timeout: NAV_TIMEOUT });
+		const simonPage = await ctx.newPage();
+		await simonPage.goto(`/join/${joinCode}`);
+		await expect(
+			simonPage.getByRole("heading", { name: /you're invited to lunch/i }),
+		).toBeVisible({ timeout: NAV_TIMEOUT });
+		await simonPage
+			.getByRole("textbox", { name: /display name/i })
+			.fill("Simon");
+		await simonPage.getByRole("button", { name: /join lunch/i }).click();
+		await expect(
+			simonPage.getByRole("heading", { name: /lobby/i }),
+		).toBeVisible({ timeout: NAV_TIMEOUT });
 
-      const alicePage = await ctx.newPage();
-      await alicePage.goto(`/join/${joinCode}`);
-      await expect(alicePage.getByRole("heading", { name: /you're invited to lunch/i })).toBeVisible({ timeout: NAV_TIMEOUT });
-      await alicePage.getByRole("textbox", { name: /display name/i }).fill("Alice");
-      await alicePage.getByRole("button", { name: /join lunch/i }).click();
-      await expect(alicePage.getByRole("heading", { name: /lobby/i })).toBeVisible({ timeout: NAV_TIMEOUT });
+		const alicePage = await ctx.newPage();
+		await alicePage.goto(`/join/${joinCode}`);
+		await expect(
+			alicePage.getByRole("heading", { name: /you're invited to lunch/i }),
+		).toBeVisible({ timeout: NAV_TIMEOUT });
+		await alicePage
+			.getByRole("textbox", { name: /display name/i })
+			.fill("Alice");
+		await alicePage.getByRole("button", { name: /join lunch/i }).click();
+		await expect(
+			alicePage.getByRole("heading", { name: /lobby/i }),
+		).toBeVisible({ timeout: NAV_TIMEOUT });
 
-      await expect(hostPage.getByText(/simon/i)).toBeVisible({ timeout: SSE_TIMEOUT });
-      await expect(hostPage.getByText(/alice/i)).toBeVisible({ timeout: SSE_TIMEOUT });
+		await expect(hostPage.getByText(/simon/i)).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
+		await expect(hostPage.getByText(/alice/i)).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
 
-      await hostPage.getByRole("button", { name: /start swiping/i }).click();
-      await expect(simonPage.getByRole("button", { name: /^accept$/i })).toBeVisible({ timeout: DECK_TIMEOUT });
-      await expect(alicePage.getByRole("button", { name: /^accept$/i })).toBeVisible({ timeout: DECK_TIMEOUT });
+		await hostPage.getByRole("button", { name: /start swiping/i }).click();
+		await expect(
+			simonPage.getByRole("button", { name: /^accept$/i }),
+		).toBeVisible({ timeout: DECK_TIMEOUT });
+		await expect(
+			alicePage.getByRole("button", { name: /^accept$/i }),
+		).toBeVisible({ timeout: DECK_TIMEOUT });
 
-      const simonCardName = await simonPage.getByTestId("swipe-card-name").textContent();
-      const aliceCardName = await alicePage.getByTestId("swipe-card-name").textContent();
-      expect(simonCardName?.trim()).toBeTruthy();
-      expect(simonCardName?.trim()).toEqual(aliceCardName?.trim());
+		const simonCardName = await simonPage
+			.getByTestId("swipe-card-name")
+			.textContent();
+		const aliceCardName = await alicePage
+			.getByTestId("swipe-card-name")
+			.textContent();
+		expect(simonCardName?.trim()).toBeTruthy();
+		expect(simonCardName?.trim()).toEqual(aliceCardName?.trim());
 
-      await simonPage.getByRole("button", { name: /^accept$/i }).click();
-      await expect(simonPage.getByTestId("swipe-card-name")).not.toHaveText(simonCardName!.trim(), { timeout: NAV_TIMEOUT });
-      await alicePage.getByRole("button", { name: /^accept$/i }).click();
+		await simonPage.getByRole("button", { name: /^accept$/i }).click();
+		await expect(simonPage.getByTestId("swipe-card-name")).not.toHaveText(
+			simonCardName!.trim(),
+			{ timeout: NAV_TIMEOUT },
+		);
+		await alicePage.getByRole("button", { name: /^accept$/i }).click();
 
-      await expect(alicePage.getByTestId("promote-toast")).toBeVisible({ timeout: SSE_TIMEOUT });
+		await expect(alicePage.getByTestId("promote-toast")).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
 
-      await hostPage.getByRole("button", { name: /open poll/i }).click();
-      await expect(hostPage.getByRole("heading", { name: /vote/i })).toBeVisible({ timeout: SSE_TIMEOUT });
-      await expect(hostPage.getByTestId("vote-up").first()).toBeVisible({ timeout: SSE_TIMEOUT });
+		await hostPage.getByRole("button", { name: /open poll/i }).click();
+		await expect(hostPage.getByRole("heading", { name: /vote/i })).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
+		await expect(hostPage.getByTestId("vote-up").first()).toBeVisible({
+			timeout: SSE_TIMEOUT,
+		});
 
-      await ctx.close();
-    },
-  );
+		await ctx.close();
+	});
 });

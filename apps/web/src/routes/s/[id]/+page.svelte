@@ -1,237 +1,248 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { page } from "$app/state";
-  import { memberInput, readSessionMember } from "$lib/client/memberSession";
-  import { api } from "$lib/client/orpc";
-  import { createSessionStore } from "$lib/client/sessionStore.svelte";
-  import { createDeck } from "$lib/client/deck.svelte";
-  import { getAppLogger } from "@scope/logging/browser";
-  import {
-    Button,
-    CandidateRow,
-    Countdown,
-    MemberPill,
-    SwipeCard,
-  } from "@scope/ui";
-  import type { Candidate, Restaurant } from "@scope/contract";
-  // The oRPC client returns a Zod-inferred snapshot whose optional numerics are
-  // `T | undefined` (vs the domain SessionState that omits absent optionals under
-  // exactOptionalPropertyTypes). Type the local snapshot from the client's actual
-  // return so it flows into the components without a cast — the same seam the
-  // deck/store normalisers cross. `status` is the discriminating union we switch on.
-  type Snapshot = NonNullable<Awaited<ReturnType<typeof api.session.state>>>;
-  type SnapshotCandidate = Snapshot["candidates"][number];
+import { page } from "$app/state";
+import { createDeck } from "$lib/client/deck.svelte";
+import { memberInput, readSessionMember } from "$lib/client/memberSession";
+import { api } from "$lib/client/orpc";
+import { createSessionStore } from "$lib/client/sessionStore.svelte";
+import type { Candidate, Restaurant } from "@scope/contract";
+import { getAppLogger } from "@scope/logging/browser";
+import {
+	Button,
+	CandidateRow,
+	Countdown,
+	MemberPill,
+	SwipeCard,
+} from "@scope/ui";
+import { onMount } from "svelte";
+// The oRPC client returns a Zod-inferred snapshot whose optional numerics are
+// `T | undefined` (vs the domain SessionState that omits absent optionals under
+// exactOptionalPropertyTypes). Type the local snapshot from the client's actual
+// return so it flows into the components without a cast — the same seam the
+// deck/store normalisers cross. `status` is the discriminating union we switch on.
+type Snapshot = NonNullable<Awaited<ReturnType<typeof api.session.state>>>;
+type SnapshotCandidate = Snapshot["candidates"][number];
 
-  // Cross the Zod->domain seam for a candidate before handing it to CandidateRow,
-  // which takes the strict domain Candidate. Same normaliser shape as the deck/
-  // store: drop absent optionals so the value satisfies Restaurant exactly.
-  function toCandidate(c: SnapshotCandidate): Candidate {
-    const r = c.restaurant;
-    const restaurant: Restaurant = {
-      id: r.id,
-      name: r.name,
-      address: r.address,
-      cuisineTags: r.cuisineTags,
-      ...(r.lat !== undefined ? { lat: r.lat } : {}),
-      ...(r.lng !== undefined ? { lng: r.lng } : {}),
-      ...(r.rating !== undefined ? { rating: r.rating } : {}),
-      ...(r.priceLevel !== undefined ? { priceLevel: r.priceLevel } : {}),
-      ...(r.distanceM !== undefined ? { distanceM: r.distanceM } : {}),
-    };
-    return {
-      id: c.id,
-      restaurant,
-      promotedAt: c.promotedAt,
-      upvotes: c.upvotes,
-      downvotes: c.downvotes,
-      netScore: c.netScore,
-    };
-  }
+// Cross the Zod->domain seam for a candidate before handing it to CandidateRow,
+// which takes the strict domain Candidate. Same normaliser shape as the deck/
+// store: drop absent optionals so the value satisfies Restaurant exactly.
+function toCandidate(c: SnapshotCandidate): Candidate {
+	const r = c.restaurant;
+	const restaurant: Restaurant = {
+		id: r.id,
+		name: r.name,
+		address: r.address,
+		cuisineTags: r.cuisineTags,
+		...(r.lat !== undefined ? { lat: r.lat } : {}),
+		...(r.lng !== undefined ? { lng: r.lng } : {}),
+		...(r.rating !== undefined ? { rating: r.rating } : {}),
+		...(r.priceLevel !== undefined ? { priceLevel: r.priceLevel } : {}),
+		...(r.distanceM !== undefined ? { distanceM: r.distanceM } : {}),
+	};
+	return {
+		id: c.id,
+		restaurant,
+		promotedAt: c.promotedAt,
+		upvotes: c.upvotes,
+		downvotes: c.downvotes,
+		netScore: c.netScore,
+	};
+}
 
-  // ponytail: route param via $app/state — matches the join screen's pattern
-  // for this SvelteKit 2 / Svelte 5 runes version.
-  const sessionId = $derived(page.params.id ?? "");
+// ponytail: route param via $app/state — matches the join screen's pattern
+// for this SvelteKit 2 / Svelte 5 runes version.
+const sessionId = $derived(page.params.id ?? "");
 
-  // The live session store (SSE-backed; mock transport when PUBLIC_USE_MOCK=1).
-  // The store reduces incoming events into its own state. In mock mode the SSE
-  // channel carries no events on its own, so this screen treats the authoritative
-  // snapshot from api.session.state() as the source of truth and re-hydrates it
-  // after each host mutation. The store is still connected so the real backend
-  // (F1.6) drives live updates with zero screen changes.
-  let store = $state<ReturnType<typeof createSessionStore> | null>(null);
-  let deck = $state<ReturnType<typeof createDeck> | null>(null);
-  let memberId = $state<string | undefined>(undefined);
+// The live session store (SSE-backed; mock transport when PUBLIC_USE_MOCK=1).
+// The store reduces incoming events into its own state. In mock mode the SSE
+// channel carries no events on its own, so this screen treats the authoritative
+// snapshot from api.session.state() as the source of truth and re-hydrates it
+// after each host mutation. The store is still connected so the real backend
+// (F1.6) drives live updates with zero screen changes.
+let store = $state<ReturnType<typeof createSessionStore> | null>(null);
+let deck = $state<ReturnType<typeof createDeck> | null>(null);
+let memberId = $state<string | undefined>(undefined);
 
-  // Authoritative snapshot. Seeded on mount, refreshed after host actions.
-  let session = $state<Snapshot | null>(null);
-  let loadError = $state<string | null>(null);
-  let origin = $state("");
-  let copiedInvite = $state(false);
+// Authoritative snapshot. Seeded on mount, refreshed after host actions.
+let session = $state<Snapshot | null>(null);
+let loadError = $state<string | null>(null);
+let origin = $state("");
+let copiedInvite = $state(false);
 
-  const isHost = $derived(session?.viewerIsHost ?? false);
-  const status = $derived(session?.status ?? "lobby");
-  const inviteUrl = $derived(session && origin ? `${origin}/join/${session.joinCode}` : "");
+const isHost = $derived(session?.viewerIsHost ?? false);
+const status = $derived(session?.status ?? "lobby");
+const inviteUrl = $derived(
+	session && origin ? `${origin}/join/${session.joinCode}` : "",
+);
 
-  // The promoted candidate chosen as the winner, for the decided view.
-  const winner = $derived(
-    session?.candidates.find((c) => c.id === session?.winnerCandidateId),
-  );
+// The promoted candidate chosen as the winner, for the decided view.
+const winner = $derived(
+	session?.candidates.find((c) => c.id === session?.winnerCandidateId),
+);
 
-  // Transient "promoted!" toast text, shown briefly after a promoting swipe.
-  let promotedToast = $state<string | null>(null);
-  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+// Transient "promoted!" toast text, shown briefly after a promoting swipe.
+let promotedToast = $state<string | null>(null);
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Inline error message for poll actions (openPoll / vote / endPoll).
-  // ponytail: single string; null = hidden. Dismissed by the user or cleared on next successful action.
-  let actionError = $state<string | null>(null);
+// Inline error message for poll actions (openPoll / vote / endPoll).
+// ponytail: single string; null = hidden. Dismissed by the user or cleared on next successful action.
+let actionError = $state<string | null>(null);
 
-  // This client's vote per candidate, to highlight the chosen button.
-  let myVotes = $state<Record<string, 1 | -1>>({});
+// This client's vote per candidate, to highlight the chosen button.
+let myVotes = $state<Record<string, 1 | -1>>({});
 
-  async function refresh() {
-    // ponytail: retry loop — the session row may not be visible yet if the anon
-    // sign-in cookie just landed. Three attempts with a short back-off is enough
-    // to bridge the propagation gap without a library.
-    const MAX_ATTEMPTS = 3;
-    const RETRY_DELAY_MS = 600;
-    let lastErr: unknown;
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      try {
-        session = await api.session.state(memberInput(sessionId, memberId));
-        loadError = session ? null : "This lunch session could not be found.";
-        return;
-      } catch (err) {
-        lastErr = err;
-        if (attempt < MAX_ATTEMPTS - 1) {
-          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-        }
-      }
-    }
-    getAppLogger(["session"]).error("Refresh failed after retries", { error: lastErr });
-    loadError = lastErr instanceof Error ? lastErr.message : "Could not load this lunch session.";
-  }
+async function refresh() {
+	// ponytail: retry loop — the session row may not be visible yet if the anon
+	// sign-in cookie just landed. Three attempts with a short back-off is enough
+	// to bridge the propagation gap without a library.
+	const MAX_ATTEMPTS = 3;
+	const RETRY_DELAY_MS = 600;
+	let lastErr: unknown;
+	for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+		try {
+			session = await api.session.state(memberInput(sessionId, memberId));
+			loadError = session ? null : "This lunch session could not be found.";
+			return;
+		} catch (err) {
+			lastErr = err;
+			if (attempt < MAX_ATTEMPTS - 1) {
+				await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+			}
+		}
+	}
+	getAppLogger(["session"]).error("Refresh failed after retries", {
+		error: lastErr,
+	});
+	loadError =
+		lastErr instanceof Error
+			? lastErr.message
+			: "Could not load this lunch session.";
+}
 
-  onMount(() => {
-    origin = window.location.origin;
-    memberId = readSessionMember(sessionId);
-    const code = session?.joinCode ?? "";
-    deck = createDeck(sessionId, memberId);
-    // Feed deck.replenished events (worker finished caching, or a broaden) into
-    // this client's deck. The SessionState reducer ignores them, so the page
-    // taps them here. This is what self-heals a deck that loaded empty because
-    // it raced ahead of the worker's places.fetch.
-    const s = createSessionStore(sessionId, code, (event) => {
-      if (event.type === "deck.replenished") {
-        deck?.appendReplenished(event.restaurants);
-      }
-    });
-    store = s;
-    s.connect();
-    void refresh();
-    return () => {
-      s.disconnect();
-      if (toastTimer) clearTimeout(toastTimer);
-    };
-  });
+onMount(() => {
+	origin = window.location.origin;
+	memberId = readSessionMember(sessionId);
+	const code = session?.joinCode ?? "";
+	deck = createDeck(sessionId, memberId);
+	// Feed deck.replenished events (worker finished caching, or a broaden) into
+	// this client's deck. The SessionState reducer ignores them, so the page
+	// taps them here. This is what self-heals a deck that loaded empty because
+	// it raced ahead of the worker's places.fetch.
+	const s = createSessionStore(sessionId, code, (event) => {
+		if (event.type === "deck.replenished") {
+			deck?.appendReplenished(event.restaurants);
+		}
+	});
+	store = s;
+	s.connect();
+	void refresh();
+	return () => {
+		s.disconnect();
+		if (toastTimer) clearTimeout(toastTimer);
+	};
+});
 
-  // Load this client's deck once the session is swiping — uniformly for the
-  // host (who clicks Start swiping) and every member (who arrives here via the
-  // session.started SSE transition, with no control to trigger a load). Guarded
-  // so it fires once per session. If this initial load races ahead of the
-  // worker's places.fetch and returns empty, the deck.replenished tap in
-  // onMount refills it when the worker finishes.
-  let deckLoadStarted = false;
-  $effect(() => {
-    if (status === "swiping" && deck && !deckLoadStarted) {
-      deckLoadStarted = true;
-      void deck.load();
-    }
-  });
+// Load this client's deck once the session is swiping — uniformly for the
+// host (who clicks Start swiping) and every member (who arrives here via the
+// session.started SSE transition, with no control to trigger a load). Guarded
+// so it fires once per session. If this initial load races ahead of the
+// worker's places.fetch and returns empty, the deck.replenished tap in
+// onMount refills it when the worker finishes.
+let deckLoadStarted = false;
+$effect(() => {
+	if (status === "swiping" && deck && !deckLoadStarted) {
+		deckLoadStarted = true;
+		void deck.load();
+	}
+});
 
-  // ponytail: refresh the authoritative oRPC snapshot when SSE delivers events
-  // that affect the rendered UI (member joins, status changes, new candidates).
-  // We track store.state.members.length / status / candidates.length — these
-  // change only when the SSE reducer processes a meaningful event (not on
-  // deck.replenished or prompt.broaden). Reading `session` here would create a
-  // dependency loop (refresh writes session → effect re-runs), so we only
-  // subscribe to STORE properties and let refresh() be idempotent.
-  $effect(() => {
-    if (!store) return;
-    // Subscribe to meaningful store state dimensions. Svelte tracks these reads.
-    void store.state.members.length;
-    void store.state.status;
-    void store.state.candidates.length;
-    void refresh();
-  });
+// ponytail: refresh the authoritative oRPC snapshot when SSE delivers events
+// that affect the rendered UI (member joins, status changes, new candidates).
+// We track store.state.members.length / status / candidates.length — these
+// change only when the SSE reducer processes a meaningful event (not on
+// deck.replenished or prompt.broaden). Reading `session` here would create a
+// dependency loop (refresh writes session → effect re-runs), so we only
+// subscribe to STORE properties and let refresh() be idempotent.
+$effect(() => {
+	if (!store) return;
+	// Subscribe to meaningful store state dimensions. Svelte tracks these reads.
+	void store.state.members.length;
+	void store.state.status;
+	void store.state.candidates.length;
+	void refresh();
+});
 
-  function flashPromoted(name: string) {
-    promotedToast = `🎉 ${name} promoted!`;
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => {
-      promotedToast = null;
-    }, 2200);
-  }
+function flashPromoted(name: string) {
+	promotedToast = `🎉 ${name} promoted!`;
+	if (toastTimer) clearTimeout(toastTimer);
+	toastTimer = setTimeout(() => {
+		promotedToast = null;
+	}, 2200);
+}
 
-  async function startSwiping() {
-    await api.session.startSwiping(memberInput(sessionId, memberId));
-    await refresh();
-    // Deck loading is owned by the status-swiping $effect below, so it happens
-    // uniformly for the host and every member (who arrive via SSE, not here).
-  }
+async function startSwiping() {
+	await api.session.startSwiping(memberInput(sessionId, memberId));
+	await refresh();
+	// Deck loading is owned by the status-swiping $effect below, so it happens
+	// uniformly for the host and every member (who arrive via SSE, not here).
+}
 
-  async function onSwipe(decision: "accept" | "reject") {
-    const result = await deck?.decide(decision);
-    if (result?.promoted && result.candidate) {
-      flashPromoted(result.candidate.restaurant.name);
-      await refresh();
-    }
-  }
+async function onSwipe(decision: "accept" | "reject") {
+	const result = await deck?.decide(decision);
+	if (result?.promoted && result.candidate) {
+		flashPromoted(result.candidate.restaurant.name);
+		await refresh();
+	}
+}
 
-  async function openPoll() {
-    try {
-      actionError = null;
-      await api.poll.start(memberInput(sessionId, memberId));
-      await refresh();
-    } catch (err) {
-      actionError = err instanceof Error ? err.message : "Failed to open poll.";
-    }
-  }
+async function openPoll() {
+	try {
+		actionError = null;
+		await api.poll.start(memberInput(sessionId, memberId));
+		await refresh();
+	} catch (err) {
+		actionError = err instanceof Error ? err.message : "Failed to open poll.";
+	}
+}
 
-  async function vote(candidateId: string, value: 1 | -1) {
-    try {
-      actionError = null;
-      // ponytail: apply optimistic state AFTER the RPC succeeds — if it throws,
-      // myVotes is never updated so the button stays in its prior state.
-      await api.poll.vote({ ...memberInput(sessionId, memberId), candidateId, value });
-      myVotes = { ...myVotes, [candidateId]: value };
-      await refresh();
-    } catch (err) {
-      actionError = err instanceof Error ? err.message : "Vote failed.";
-    }
-  }
+async function vote(candidateId: string, value: 1 | -1) {
+	try {
+		actionError = null;
+		// ponytail: apply optimistic state AFTER the RPC succeeds — if it throws,
+		// myVotes is never updated so the button stays in its prior state.
+		await api.poll.vote({
+			...memberInput(sessionId, memberId),
+			candidateId,
+			value,
+		});
+		myVotes = { ...myVotes, [candidateId]: value };
+		await refresh();
+	} catch (err) {
+		actionError = err instanceof Error ? err.message : "Vote failed.";
+	}
+}
 
-  async function endPoll() {
-    try {
-      actionError = null;
-      await api.poll.close(memberInput(sessionId, memberId));
-      await refresh();
-    } catch (err) {
-      actionError = err instanceof Error ? err.message : "Failed to end poll.";
-    }
-  }
+async function endPoll() {
+	try {
+		actionError = null;
+		await api.poll.close(memberInput(sessionId, memberId));
+		await refresh();
+	} catch (err) {
+		actionError = err instanceof Error ? err.message : "Failed to end poll.";
+	}
+}
 
-  async function copyInvite() {
-    if (!inviteUrl) return;
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      copiedInvite = true;
-      setTimeout(() => {
-        copiedInvite = false;
-      }, 1600);
-    } catch {
-      actionError = "Could not copy the invite link.";
-    }
-  }
+async function copyInvite() {
+	if (!inviteUrl) return;
+	try {
+		await navigator.clipboard.writeText(inviteUrl);
+		copiedInvite = true;
+		setTimeout(() => {
+			copiedInvite = false;
+		}, 1600);
+	} catch {
+		actionError = "Could not copy the invite link.";
+	}
+}
 </script>
 
 <main class="page">

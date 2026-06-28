@@ -1,16 +1,20 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
-  import CreatePollForm from "$lib/components/CreatePollForm.svelte";
-  import type { PageData } from "./$types";
+import { goto } from "$app/navigation";
+import CreatePollForm from "$lib/components/CreatePollForm.svelte";
+import type { PageData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+const { data }: { data: PageData } = $props();
 
-  // ponytail: Intl.DateTimeFormat is stdlib — no date lib for one formatted date.
-  const dateFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" });
+// ponytail: Intl.DateTimeFormat is stdlib — no date lib for one formatted date.
+const dateFmt = new Intl.DateTimeFormat(undefined, {
+	day: "numeric",
+	month: "short",
+	year: "numeric",
+});
 
-  function formatDate(iso: string): string {
-    return dateFmt.format(new Date(iso));
-  }
+function formatDate(iso: string): string {
+	return dateFmt.format(new Date(iso));
+}
 </script>
 
 <main class="page">

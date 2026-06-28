@@ -8,7 +8,7 @@ export async function absorbGuest(
 ): Promise<{ reassigned: boolean }> {
   if (
     input.anonUserId === currentUserId ||
-    await repo.isAnonymousUser(currentUserId) ||
+    (await repo.isAnonymousUser(currentUserId)) ||
     !(await repo.isAnonymousUser(input.anonUserId))
   ) {
     return { reassigned: false };

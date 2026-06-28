@@ -63,7 +63,10 @@ export class GooglePlaces implements PlacesProvider {
     });
 
     if (!response.ok) {
-      throw new ProviderError(`Google Places request failed with status ${response.status}`, await safeBody(response));
+      throw new ProviderError(
+        `Google Places request failed with status ${response.status}`,
+        await safeBody(response),
+      );
     }
 
     const payload = (await response.json()) as { places?: GooglePlace[] };

@@ -1,15 +1,15 @@
 <script lang="ts">
-  import Avatar from "./Avatar.svelte";
+import Avatar from "./Avatar.svelte";
 
-  let {
-    name,
-    image,
-    host = false,
-  }: {
-    name: string;
-    image?: string | undefined;
-    host?: boolean;
-  } = $props();
+const {
+	name,
+	image,
+	host = false,
+}: {
+	name: string;
+	image?: string | undefined;
+	host?: boolean;
+} = $props();
 </script>
 
 <span class="pill" class:host>

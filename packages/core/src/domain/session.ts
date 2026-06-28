@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 import type { CreateSessionInput, JoinSessionInput } from "@scope/contract";
-import type { AddMemberRecord, OutboxWrite, SessionRepo, TransactionContext } from "../ports/repo";
 import { NotHostError } from "../index";
+import type { AddMemberRecord, OutboxWrite, SessionRepo, TransactionContext } from "../ports/repo";
 
 const JOIN_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const JOIN_CODE_LENGTH = 10;
@@ -76,7 +76,9 @@ export async function createSession<Tx>(
 }
 
 export async function joinSession<Tx>(
-  deps: Omit<SessionCommandDeps<Tx>, "ids"> & { ids: Pick<SessionCommandIds, "memberId"> },
+  deps: Omit<SessionCommandDeps<Tx>, "ids"> & {
+    ids: Pick<SessionCommandIds, "memberId">;
+  },
   input: JoinSessionInput,
   userId: string,
   memberImage?: string,
@@ -159,14 +161,22 @@ function sessionStartedEvent(sessionId: string): OutboxWrite {
   };
 }
 
-async function assertHost<Tx>(repo: SessionRepo<Tx>, tx: Tx, sessionId: string, userId: string): Promise<void> {
+async function assertHost<Tx>(
+  repo: SessionRepo<Tx>,
+  tx: Tx,
+  sessionId: string,
+  userId: string,
+): Promise<void> {
   if (!(await repo.isHost(tx, sessionId, userId))) {
     throw new NotHostError();
   }
 }
 
 function normalizeJoinCode(joinCode: string): string {
-  return joinCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+  return joinCode
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 12);
 }
 
 function randomJoinCode(): string {

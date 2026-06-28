@@ -21,10 +21,27 @@ describe("GooglePlaces.searchNearby", () => {
       }),
     });
     const cache = new MemoryCache();
-    const places = new GooglePlaces({ apiKey: "k", cache, ttlS: 1800, fetch: fetchMock });
+    const places = new GooglePlaces({
+      apiKey: "k",
+      cache,
+      ttlS: 1800,
+      fetch: fetchMock,
+    });
 
-    const first = await places.searchNearby({ lat: 1, lng: 2, radiusM: 500, cuisines: ["sushi"], limit: 5 });
-    const second = await places.searchNearby({ lat: 1, lng: 2, radiusM: 500, cuisines: ["sushi"], limit: 5 });
+    const first = await places.searchNearby({
+      lat: 1,
+      lng: 2,
+      radiusM: 500,
+      cuisines: ["sushi"],
+      limit: 5,
+    });
+    const second = await places.searchNearby({
+      lat: 1,
+      lng: 2,
+      radiusM: 500,
+      cuisines: ["sushi"],
+      limit: 5,
+    });
 
     expect(first[0]).toMatchObject({
       id: "p1",
@@ -40,14 +57,31 @@ describe("GooglePlaces.searchNearby", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [, init] = fetchMock.mock.calls[0]!;
     expect((init?.headers as Record<string, string>)["X-Goog-Api-Key"]).toBe("k");
-    expect((init?.headers as Record<string, string>)["X-Goog-FieldMask"]).toContain("places.displayName");
+    expect((init?.headers as Record<string, string>)["X-Goog-FieldMask"]).toContain(
+      "places.displayName",
+    );
   });
 
   it("wraps non-ok responses as provider errors", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 429, text: async () => "quota" });
-    const places = new GooglePlaces({ apiKey: "k", cache: new MemoryCache(), ttlS: 1800, fetch: fetchMock });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 429, text: async () => "quota" });
+    const places = new GooglePlaces({
+      apiKey: "k",
+      cache: new MemoryCache(),
+      ttlS: 1800,
+      fetch: fetchMock,
+    });
 
-    await expect(places.searchNearby({ lat: 1, lng: 2, radiusM: 500, cuisines: [], limit: 5 })).rejects.toMatchObject({
+    await expect(
+      places.searchNearby({
+        lat: 1,
+        lng: 2,
+        radiusM: 500,
+        cuisines: [],
+        limit: 5,
+      }),
+    ).rejects.toMatchObject({
       name: "ProviderError",
     });
   });

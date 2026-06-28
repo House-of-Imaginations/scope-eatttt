@@ -1,21 +1,21 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-  type Variant = "primary" | "secondary" | "accept" | "reject";
+type Variant = "primary" | "secondary" | "accept" | "reject";
 
-  let {
-    variant = "primary",
-    disabled = false,
-    type = "button",
-    onclick,
-    children,
-  }: {
-    variant?: Variant;
-    disabled?: boolean;
-    type?: "button" | "submit" | "reset";
-    onclick?: (event: MouseEvent) => void;
-    children?: Snippet;
-  } = $props();
+const {
+	variant = "primary",
+	disabled = false,
+	type = "button",
+	onclick,
+	children,
+}: {
+	variant?: Variant;
+	disabled?: boolean;
+	type?: "button" | "submit" | "reset";
+	onclick?: (event: MouseEvent) => void;
+	children?: Snippet;
+} = $props();
 </script>
 
 <button class="btn {variant}" {type} {disabled} {onclick}>

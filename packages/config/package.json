@@ -1,24 +1,24 @@
 {
-  "name": "@scope/config",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "main": "src/index.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./tsconfig.base.json": "./tsconfig.base.json"
-  },
-  "scripts": {
-    "build": "tsc --noEmit",
-    "check-types": "tsc --noEmit",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@t3-oss/env-core": "^0.13.11",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
-  }
+	"name": "@scope/config",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"main": "src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./tsconfig.base.json": "./tsconfig.base.json"
+	},
+	"scripts": {
+		"build": "tsc --noEmit",
+		"check-types": "tsc --noEmit",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@t3-oss/env-core": "^0.13.11",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"typescript": "^5.8.3",
+		"vitest": "^3.2.4"
+	}
 }

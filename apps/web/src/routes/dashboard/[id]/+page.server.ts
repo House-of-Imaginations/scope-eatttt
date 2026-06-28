@@ -1,5 +1,5 @@
-import type { PageServerLoad } from "./$types";
 import { getContainer } from "$lib/server/container";
+import type { PageServerLoad } from "./$types";
 import { loadSummary } from "./load";
 
 export const load: PageServerLoad = async ({ locals, params }) => {

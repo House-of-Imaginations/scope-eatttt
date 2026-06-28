@@ -1,5 +1,5 @@
-import type { PageServerLoad } from "./$types";
 import { getContainer } from "$lib/server/container";
+import type { PageServerLoad } from "./$types";
 import { loadHistory } from "./load";
 
 // Direct domain call — no oRPC round-trip to our own server. Reads locals.user

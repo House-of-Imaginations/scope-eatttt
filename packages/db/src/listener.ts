@@ -9,7 +9,10 @@ export function createOutboxListenerConfig(url: string): OutboxListenerConfig {
   return { url, channel: "outbox" };
 }
 
-export async function listenOutbox(url: string, onEventId: (eventId: string) => void | Promise<void>) {
+export async function listenOutbox(
+  url: string,
+  onEventId: (eventId: string) => void | Promise<void>,
+) {
   const config = createOutboxListenerConfig(url);
   const sql = postgres(config.url);
   await sql.listen(config.channel, (eventId) => {

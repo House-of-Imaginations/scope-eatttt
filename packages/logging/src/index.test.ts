@@ -1,10 +1,6 @@
 import { getConfig, resetSync } from "@logtape/logtape";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  configureBackendLogging,
-  configureFrontendLogging,
-  getAppLogger,
-} from "./index";
+import { configureBackendLogging, configureFrontendLogging, getAppLogger } from "./index";
 
 describe("@scope/logging", () => {
   afterEach(() => {
@@ -27,11 +23,7 @@ describe("@scope/logging", () => {
     configureBackendLogging({ service: "worker", level: "info" });
     getAppLogger("startup").info("Worker started");
 
-    expect(getAppLogger("startup").category).toEqual([
-      "scope-eatttt",
-      "worker",
-      "startup",
-    ]);
+    expect(getAppLogger("startup").category).toEqual(["scope-eatttt", "worker", "startup"]);
     expect(info).toHaveBeenCalled();
   });
 

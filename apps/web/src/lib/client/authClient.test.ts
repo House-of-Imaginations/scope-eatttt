@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("$env/static/public", () => ({ PUBLIC_USE_MOCK: "0" }));
 
-const { getCurrentUser, signInEmail, signUpEmail, signOut, signInGoogle } =
-  await import("./authClient");
+const { getCurrentUser, signInEmail, signUpEmail, signOut, signInGoogle } = await import(
+  "./authClient"
+);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -34,24 +35,32 @@ describe("signInEmail", () => {
   it("returns ok:false with retryAfter when response is 429", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(JSON.stringify({ message: "slow down" }), {
-          status: 429,
-          headers: { "X-Retry-After": "30" },
-        }),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ message: "slow down" }), {
+            status: 429,
+            headers: { "X-Retry-After": "30" },
+          }),
       ),
     );
 
     const result = await signInEmail({ email: "a@b.com", password: "pass" });
 
-    expect(result).toEqual({ ok: false, error: "Too many attempts", retryAfter: 30 });
+    expect(result).toEqual({
+      ok: false,
+      error: "Too many attempts",
+      retryAfter: 30,
+    });
   });
 
   it("returns ok:false with message from JSON body on non-ok response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(JSON.stringify({ message: "bad creds" }), { status: 401 }),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ message: "bad creds" }), {
+            status: 401,
+          }),
       ),
     );
 
@@ -83,7 +92,11 @@ describe("signUpEmail", () => {
       }),
     );
 
-    const result = await signUpEmail({ name: "Al", email: "a@b.com", password: "pass" });
+    const result = await signUpEmail({
+      name: "Al",
+      email: "a@b.com",
+      password: "pass",
+    });
 
     expect(result).toEqual({ ok: true });
     expect(capturedUrl).toBe("/api/auth/sign-up/email");
@@ -94,9 +107,7 @@ describe("getCurrentUser", () => {
   it("returns null when get-session body has no session", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(JSON.stringify(null), { status: 200 }),
-      ),
+      vi.fn(async () => new Response(JSON.stringify(null), { status: 200 })),
     );
 
     const user = await getCurrentUser();
@@ -116,38 +127,52 @@ describe("getCurrentUser", () => {
   it("maps {user,session} shape to flat object with isAnonymous defaulting to false", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            user: {
-              id: "u1",
-              name: "Al",
-              email: "a@b.com",
-              image: null,
-            },
-            session: { id: "s1" },
-          }),
-          { status: 200 },
-        ),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              user: {
+                id: "u1",
+                name: "Al",
+                email: "a@b.com",
+                image: null,
+              },
+              session: { id: "s1" },
+            }),
+            { status: 200 },
+          ),
       ),
     );
 
     const user = await getCurrentUser();
 
-    expect(user).toEqual({ id: "u1", isAnonymous: false, name: "Al", email: "a@b.com", image: null });
+    expect(user).toEqual({
+      id: "u1",
+      isAnonymous: false,
+      name: "Al",
+      email: "a@b.com",
+      image: null,
+    });
   });
 
   it("maps isAnonymous:true when user.isAnonymous is true", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            user: { id: "u2", name: "Guest", email: "", image: null, isAnonymous: true },
-            session: { id: "s2" },
-          }),
-          { status: 200 },
-        ),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              user: {
+                id: "u2",
+                name: "Guest",
+                email: "",
+                image: null,
+                isAnonymous: true,
+              },
+              session: { id: "s2" },
+            }),
+            { status: 200 },
+          ),
       ),
     );
 
@@ -185,8 +210,6 @@ describe("signInGoogle", () => {
 
     signInGoogle("/dashboard");
 
-    expect(loc.href).toBe(
-      "/api/auth/sign-in/social?provider=google&callbackURL=%2Fdashboard",
-    );
+    expect(loc.href).toBe("/api/auth/sign-in/social?provider=google&callbackURL=%2Fdashboard");
   });
 });

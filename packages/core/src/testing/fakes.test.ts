@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { AppEvent } from "@scope/contract";
+import { describe, expect, it } from "vitest";
 import { FakePlaces, InMemoryBus, InlineQueue, MemoryCache } from "../index";
 
 const event: AppEvent & { id: string } = {
@@ -67,12 +67,18 @@ describe("InMemoryBus", () => {
 
     await bus.publish("sessions:1", event);
     unsubscribe();
-    await bus.publish("sessions:1", { ...event, id: "00000000-0000-4000-8000-000000000003" });
+    await bus.publish("sessions:1", {
+      ...event,
+      id: "00000000-0000-4000-8000-000000000003",
+    });
 
     expect(received).toEqual(["00000000-0000-4000-8000-000000000001"]);
     expect(bus.published).toEqual([
       { channel: "sessions:1", event },
-      { channel: "sessions:1", event: { ...event, id: "00000000-0000-4000-8000-000000000003" } },
+      {
+        channel: "sessions:1",
+        event: { ...event, id: "00000000-0000-4000-8000-000000000003" },
+      },
     ]);
   });
 });
@@ -86,7 +92,11 @@ describe("InlineQueue", () => {
       handled.push(data);
     });
 
-    await queue.enqueue("poll.close", { sessionId: "session-1" }, { delayMs: 300_000, jobId: "job-1" });
+    await queue.enqueue(
+      "poll.close",
+      { sessionId: "session-1" },
+      { delayMs: 300_000, jobId: "job-1" },
+    );
 
     expect(handled).toEqual([{ sessionId: "session-1" }]);
     expect(queue.enqueued).toEqual([
@@ -105,7 +115,9 @@ describe("MemoryCache", () => {
 
     await cache.set("places:nearby", { ids: ["fake-place-1"] }, 60);
 
-    await expect(cache.get<{ ids: string[] }>("places:nearby")).resolves.toEqual({ ids: ["fake-place-1"] });
+    await expect(cache.get<{ ids: string[] }>("places:nearby")).resolves.toEqual({
+      ids: ["fake-place-1"],
+    });
     await expect(cache.get("places:missing")).resolves.toBeNull();
   });
 });

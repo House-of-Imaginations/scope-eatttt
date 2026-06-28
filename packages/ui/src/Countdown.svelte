@@ -1,37 +1,38 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+import { untrack } from "svelte";
 
-  let {
-    deadline,
-  }: {
-    deadline: string | Date;
-  } = $props();
+const {
+	deadline,
+}: {
+	deadline: string | Date;
+} = $props();
 
-  const secondsUntil = (d: string | Date) => Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 1000));
+const secondsUntil = (d: string | Date) =>
+	Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 1000));
 
-  // remaining whole seconds, never negative, recomputed each tick. Seeded once
-  // (untrack) so first paint is correct; the $effect owns all later updates.
-  let remaining = $state(untrack(() => secondsUntil(deadline)));
+// remaining whole seconds, never negative, recomputed each tick. Seeded once
+// (untrack) so first paint is correct; the $effect owns all later updates.
+let remaining = $state(untrack(() => secondsUntil(deadline)));
 
-  $effect(() => {
-    // re-read deadline so changing the prop restarts the countdown.
-    const end = new Date(deadline).getTime();
-    remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
-    if (remaining === 0) return;
+$effect(() => {
+	// re-read deadline so changing the prop restarts the countdown.
+	const end = new Date(deadline).getTime();
+	remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+	if (remaining === 0) return;
 
-    // ponytail: plain setInterval, no timer lib. Cleared on teardown / deps change.
-    const id = setInterval(() => {
-      const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
-      remaining = left;
-      if (left === 0) clearInterval(id);
-    }, 1000);
+	// ponytail: plain setInterval, no timer lib. Cleared on teardown / deps change.
+	const id = setInterval(() => {
+		const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+		remaining = left;
+		if (left === 0) clearInterval(id);
+	}, 1000);
 
-    return () => clearInterval(id);
-  });
+	return () => clearInterval(id);
+});
 
-  const label = $derived(
-    `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`,
-  );
+const label = $derived(
+	`${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`,
+);
 </script>
 
 <span class="countdown" class:done={remaining === 0}>{label}</span>

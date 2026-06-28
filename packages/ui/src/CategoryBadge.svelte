@@ -1,15 +1,15 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-  type Tone = "pink" | "mint";
+type Tone = "pink" | "mint";
 
-  let {
-    tone = "pink",
-    children,
-  }: {
-    tone?: Tone;
-    children?: Snippet;
-  } = $props();
+const {
+	tone = "pink",
+	children,
+}: {
+	tone?: Tone;
+	children?: Snippet;
+} = $props();
 </script>
 
 <span class="badge {tone}">{@render children?.()}</span>

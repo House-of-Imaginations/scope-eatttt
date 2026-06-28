@@ -1,11 +1,20 @@
+import {
+  BetterAuthProvider,
+  BullQueue,
+  DrizzleRelayStore,
+  DrizzleSessionRepo,
+  GooglePlaces,
+  RedisBus,
+  RedisCache,
+  RedisSecondaryStorage,
+} from "@scope/adapters";
 import type { Env } from "@scope/config";
 import { loadEnv } from "@scope/config";
 import type { AuthProvider, Cache, EventBus, JobQueue, PlacesProvider } from "@scope/core";
 import { FakePlaces } from "@scope/core";
 import { createDatabaseClients } from "@scope/db";
-import { BetterAuthProvider, BullQueue, DrizzleRelayStore, DrizzleSessionRepo, GooglePlaces, RedisBus, RedisCache, RedisSecondaryStorage } from "@scope/adapters";
 import { createAuthFromDatabase } from "./auth";
-import { createOutboxNotifyListener, type OutboxNotifyListener, type RelayStore } from "./relay";
+import { type OutboxNotifyListener, type RelayStore, createOutboxNotifyListener } from "./relay";
 import type { SessionEventReplayStore } from "./sse";
 
 type DatabaseClients = ReturnType<typeof createDatabaseClients>;
@@ -36,7 +45,10 @@ export interface BuildContainerOptions {
   fetch?: typeof fetch;
 }
 
-export function buildContainer(env: Env = loadEnv(), options: BuildContainerOptions = {}): AppContainer {
+export function buildContainer(
+  env: Env = loadEnv(),
+  options: BuildContainerOptions = {},
+): AppContainer {
   const databaseClients = options.databaseClients ?? createDatabaseClients(env);
   const repo = options.repo ?? new DrizzleSessionRepo(databaseClients.db);
   const cache = options.cache ?? RedisCache.fromUrl(env.REDIS_URL);
@@ -48,7 +60,16 @@ export function buildContainer(env: Env = loadEnv(), options: BuildContainerOpti
     queue: options.queue ?? BullQueue.fromRedisUrl("scope-eatttt", env.REDIS_URL),
     cache,
     places: options.places ?? buildPlaces(env, cache, options.fetch),
-    auth: options.auth ?? new BetterAuthProvider(createAuthFromDatabase(env, databaseClients.db, repo, RedisSecondaryStorage.fromUrl(env.REDIS_URL))),
+    auth:
+      options.auth ??
+      new BetterAuthProvider(
+        createAuthFromDatabase(
+          env,
+          databaseClients.db,
+          repo,
+          RedisSecondaryStorage.fromUrl(env.REDIS_URL),
+        ),
+      ),
     relayStore: options.relayStore ?? new DrizzleRelayStore(databaseClients.db),
     relayListener: options.relayListener ?? createOutboxNotifyListener(env.DATABASE_DIRECT_URL),
   };

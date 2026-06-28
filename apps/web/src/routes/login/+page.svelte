@@ -1,41 +1,43 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
-  import { page } from "$app/state";
-  import { PUBLIC_GOOGLE_ENABLED } from "$env/static/public";
-  import { signInEmail, signInGoogle } from "$lib/client/authClient";
-  import { parsePublicEnv } from "@scope/config";
-  import { Button } from "@scope/ui";
+import { goto } from "$app/navigation";
+import { page } from "$app/state";
+import { PUBLIC_GOOGLE_ENABLED } from "$env/static/public";
+import { signInEmail, signInGoogle } from "$lib/client/authClient";
+import { parsePublicEnv } from "@scope/config";
+import { Button } from "@scope/ui";
 
-  const googleEnabled = parsePublicEnv({ PUBLIC_GOOGLE_ENABLED }).googleEnabled;
+const googleEnabled = parsePublicEnv({ PUBLIC_GOOGLE_ENABLED }).googleEnabled;
 
-  // ponytail: query read via $app/state, same idiom as the join screen.
-  const redirect = $derived(page.url.searchParams.get("redirect") ?? "/dashboard");
-  const signupHref = $derived(`/signup?redirect=${encodeURIComponent(redirect)}`);
+// ponytail: query read via $app/state, same idiom as the join screen.
+const redirect = $derived(
+	page.url.searchParams.get("redirect") ?? "/dashboard",
+);
+const signupHref = $derived(`/signup?redirect=${encodeURIComponent(redirect)}`);
 
-  let email = $state("");
-  let password = $state("");
-  let loading = $state(false);
-  let error = $state<string | null>(null);
+const email = $state("");
+const password = $state("");
+let loading = $state(false);
+let error = $state<string | null>(null);
 
-  const canSubmit = $derived(
-    email.trim().length > 0 && password.length > 0 && !loading,
-  );
+const canSubmit = $derived(
+	email.trim().length > 0 && password.length > 0 && !loading,
+);
 
-  async function handleSubmit(e: SubmitEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
-    error = null;
-    loading = true;
-    const r = await signInEmail({ email: email.trim(), password });
-    loading = false;
-    if (r.ok) {
-      await goto(redirect);
-      return;
-    }
-    error = r.retryAfter
-      ? `Too many attempts, try again in ${r.retryAfter}s`
-      : r.error;
-  }
+async function handleSubmit(e: SubmitEvent) {
+	e.preventDefault();
+	if (!canSubmit) return;
+	error = null;
+	loading = true;
+	const r = await signInEmail({ email: email.trim(), password });
+	loading = false;
+	if (r.ok) {
+		await goto(redirect);
+		return;
+	}
+	error = r.retryAfter
+		? `Too many attempts, try again in ${r.retryAfter}s`
+		: r.error;
+}
 </script>
 
 <main class="page">

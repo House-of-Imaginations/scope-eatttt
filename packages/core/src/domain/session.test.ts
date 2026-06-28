@@ -1,17 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { createSession, joinSession, startSwiping } from "./session";
 import type { AddMemberRecord, OutboxWrite, SessionRepo, TransactionContext } from "../ports/repo";
+import { createSession, joinSession, startSwiping } from "./session";
 
 class FakeSessionRepo implements SessionRepo<TransactionContext> {
-  sessions = new Map<string, {
-    id: string;
-    joinCode: string;
-    status?: "lobby" | "swiping";
-    hostUserId?: string;
-    title?: string;
-    pollDurationSec?: number;
-    promoteThreshold?: number;
-  }>();
+  sessions = new Map<
+    string,
+    {
+      id: string;
+      joinCode: string;
+      status?: "lobby" | "swiping";
+      hostUserId?: string;
+      title?: string;
+      pollDurationSec?: number;
+      promoteThreshold?: number;
+    }
+  >();
   members: AddMemberRecord[] = [];
   outbox: OutboxWrite[] = [];
   transactionWrites: string[] = [];
@@ -20,12 +23,18 @@ class FakeSessionRepo implements SessionRepo<TransactionContext> {
     return fn({ txId: "tx-1" });
   }
 
-  async createSession(tx: TransactionContext, input: Parameters<SessionRepo<TransactionContext>["createSession"]>[1]) {
+  async createSession(
+    tx: TransactionContext,
+    input: Parameters<SessionRepo<TransactionContext>["createSession"]>[1],
+  ) {
     this.transactionWrites.push(`createSession:${tx.txId}`);
     this.sessions.set(input.id, { ...input, status: "lobby" });
   }
 
-  async addMember(tx: TransactionContext, input: Parameters<SessionRepo<TransactionContext>["addMember"]>[1]) {
+  async addMember(
+    tx: TransactionContext,
+    input: Parameters<SessionRepo<TransactionContext>["addMember"]>[1],
+  ) {
     this.transactionWrites.push(`addMember:${tx.txId}`);
     this.members.push(input);
   }
@@ -51,7 +60,9 @@ class FakeSessionRepo implements SessionRepo<TransactionContext> {
   }
 
   async isHost(_tx: TransactionContext, sessionId: string, userId: string) {
-    return this.members.some((member) => member.sessionId === sessionId && member.userId === userId && member.isHost);
+    return this.members.some(
+      (member) => member.sessionId === sessionId && member.userId === userId && member.isHost,
+    );
   }
 
   async startSwiping(tx: TransactionContext, sessionId: string) {
@@ -72,13 +83,25 @@ describe("session commands", () => {
     const repo = new FakeSessionRepo();
 
     const result = await createSession(
-      { repo, ids: { sessionId: () => "session-1", memberId: () => "member-1", joinCode: () => "ABCD12" }, now: () => "2026-06-20T00:00:00.000Z" },
+      {
+        repo,
+        ids: {
+          sessionId: () => "session-1",
+          memberId: () => "member-1",
+          joinCode: () => "ABCD12",
+        },
+        now: () => "2026-06-20T00:00:00.000Z",
+      },
       { lat: -37.8136, lng: 144.9631, cuisines: ["thai"], radiusM: 500 },
       "host-user",
       "Ada",
     );
 
-    expect(result).toEqual({ sessionId: "session-1", joinCode: "ABCD12", memberId: "member-1" });
+    expect(result).toEqual({
+      sessionId: "session-1",
+      joinCode: "ABCD12",
+      memberId: "member-1",
+    });
     expect(repo.transactionWrites).toEqual(["createSession:tx-1", "addMember:tx-1", "outbox:tx-1"]);
     expect(repo.outbox[0]).toMatchObject({
       aggregate: "session",
@@ -100,7 +123,11 @@ describe("session commands", () => {
     const repo = new FakeSessionRepo();
 
     const result = await createSession(
-      { repo, ids: { sessionId: () => "session-1", memberId: () => "member-1" }, now: () => "2026-06-20T00:00:00.000Z" },
+      {
+        repo,
+        ids: { sessionId: () => "session-1", memberId: () => "member-1" },
+        now: () => "2026-06-20T00:00:00.000Z",
+      },
       { lat: -37.8136, lng: 144.9631, cuisines: [], radiusM: 500 },
       "host-user",
       "Ada",
@@ -113,8 +140,24 @@ describe("session commands", () => {
     const repo = new FakeSessionRepo();
 
     await createSession(
-      { repo, ids: { sessionId: () => "session-1", memberId: () => "member-1", joinCode: () => "ABCD12" }, now: () => "2026-06-20T00:00:00.000Z" },
-      { lat: -37.8136, lng: 144.9631, cuisines: ["thai"], radiusM: 500, pollDurationSec: 180, promoteThreshold: 3, title: "Friday lunch" },
+      {
+        repo,
+        ids: {
+          sessionId: () => "session-1",
+          memberId: () => "member-1",
+          joinCode: () => "ABCD12",
+        },
+        now: () => "2026-06-20T00:00:00.000Z",
+      },
+      {
+        lat: -37.8136,
+        lng: 144.9631,
+        cuisines: ["thai"],
+        radiusM: 500,
+        pollDurationSec: 180,
+        promoteThreshold: 3,
+        title: "Friday lunch",
+      },
       "host-user",
       "Ada",
       "https://example.test/ada.png",
@@ -135,7 +178,11 @@ describe("session commands", () => {
     repo.sessions.set("session-1", { id: "session-1", joinCode: "ABCD12" });
 
     const result = await joinSession(
-      { repo, ids: { memberId: () => "member-2" }, now: () => "2026-06-20T00:00:00.000Z" },
+      {
+        repo,
+        ids: { memberId: () => "member-2" },
+        now: () => "2026-06-20T00:00:00.000Z",
+      },
       { joinCode: "abcd12", displayName: "Grace" },
       "guest-user",
       "https://example.test/grace.png",
@@ -143,7 +190,9 @@ describe("session commands", () => {
 
     expect(result).toEqual({ sessionId: "session-1", memberId: "member-2" });
     expect(repo.transactionWrites).toEqual(["addMember:tx-1", "outbox:tx-1"]);
-    expect(repo.members[0]).toMatchObject({ image: "https://example.test/grace.png" });
+    expect(repo.members[0]).toMatchObject({
+      image: "https://example.test/grace.png",
+    });
     expect(repo.outbox[0]).toMatchObject({
       aggregate: "session",
       aggregateId: "session-1",
@@ -163,7 +212,12 @@ describe("session commands", () => {
 
   it("lets the host move the session into swiping once and emits session.started", async () => {
     const repo = new FakeSessionRepo();
-    repo.sessions.set("session-1", { id: "session-1", joinCode: "ABCD12", status: "lobby", hostUserId: "host-user" });
+    repo.sessions.set("session-1", {
+      id: "session-1",
+      joinCode: "ABCD12",
+      status: "lobby",
+      hostUserId: "host-user",
+    });
     repo.members.push({
       id: "member-1",
       sessionId: "session-1",
@@ -173,8 +227,12 @@ describe("session commands", () => {
       joinedAt: "2026-06-20T00:00:00.000Z",
     });
 
-    await expect(startSwiping({ repo }, "session-1", "host-user")).resolves.toEqual({ status: "swiping" });
-    await expect(startSwiping({ repo }, "session-1", "host-user")).resolves.toEqual({ status: "swiping" });
+    await expect(startSwiping({ repo }, "session-1", "host-user")).resolves.toEqual({
+      status: "swiping",
+    });
+    await expect(startSwiping({ repo }, "session-1", "host-user")).resolves.toEqual({
+      status: "swiping",
+    });
 
     expect(repo.transactionWrites).toEqual(["startSwiping:tx-1", "outbox:tx-1"]);
     expect(repo.outbox).toEqual([

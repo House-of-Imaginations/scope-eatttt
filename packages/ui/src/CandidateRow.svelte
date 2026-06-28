@@ -1,17 +1,17 @@
 <script lang="ts">
-  import type { Candidate } from "@scope/contract";
-  import Button from "./Button.svelte";
+import type { Candidate } from "@scope/contract";
+import Button from "./Button.svelte";
 
-  let {
-    candidate,
-    myVote = undefined,
-    onvote,
-  }: {
-    candidate: Candidate;
-    /** This client's current vote, if any — highlights the matching button. */
-    myVote?: 1 | -1 | undefined;
-    onvote?: (value: 1 | -1) => void;
-  } = $props();
+const {
+	candidate,
+	myVote = undefined,
+	onvote,
+}: {
+	candidate: Candidate;
+	/** This client's current vote, if any — highlights the matching button. */
+	myVote?: 1 | -1 | undefined;
+	onvote?: (value: 1 | -1) => void;
+} = $props();
 </script>
 
 <!-- Comic candidate row: project-card mechanic — white surface, 3px stroke

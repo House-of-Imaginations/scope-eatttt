@@ -1,31 +1,31 @@
 {
-  "name": "@scope/ui",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "main": "src/index.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./src/avatar": "./src/avatar.ts"
-  },
-  "scripts": {
-    "check-types": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "playwright test -c playwright-ct.config.ts"
-  },
-  "dependencies": {
-    "@scope/contract": "workspace:*",
-    "@scope/tokens": "workspace:*"
-  },
-  "peerDependencies": {
-    "svelte": "^5"
-  },
-  "devDependencies": {
-    "@playwright/experimental-ct-svelte": "1.58.2",
-    "@playwright/test": "1.58.2",
-    "@sveltejs/vite-plugin-svelte": "^5.0.3",
-    "@tsconfig/svelte": "^5.0.4",
-    "svelte": "^5.56.3",
-    "svelte-check": "^4.1.0",
-    "typescript": "^5.8.3"
-  }
+	"name": "@scope/ui",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"main": "src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./src/avatar": "./src/avatar.ts"
+	},
+	"scripts": {
+		"check-types": "svelte-check --tsconfig ./tsconfig.json",
+		"test": "playwright test -c playwright-ct.config.ts"
+	},
+	"dependencies": {
+		"@scope/contract": "workspace:*",
+		"@scope/tokens": "workspace:*"
+	},
+	"peerDependencies": {
+		"svelte": "^5"
+	},
+	"devDependencies": {
+		"@playwright/experimental-ct-svelte": "1.58.2",
+		"@playwright/test": "1.58.2",
+		"@sveltejs/vite-plugin-svelte": "^5.0.3",
+		"@tsconfig/svelte": "^5.0.4",
+		"svelte": "^5.56.3",
+		"svelte-check": "^4.1.0",
+		"typescript": "^5.8.3"
+	}
 }

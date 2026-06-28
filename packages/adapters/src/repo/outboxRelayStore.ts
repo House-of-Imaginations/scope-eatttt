@@ -1,6 +1,6 @@
-import { and, asc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import type { AppEvent } from "@scope/contract";
-import { createDatabaseClients, outboxEvent } from "@scope/db";
+import { type createDatabaseClients, outboxEvent } from "@scope/db";
+import { type SQL, and, asc, eq, isNull, sql } from "drizzle-orm";
 
 type Database = ReturnType<typeof createDatabaseClients>["db"];
 const SESSION_REPLAY_LIMIT = 500;
@@ -45,8 +45,14 @@ export class DrizzleRelayStore {
     return rows.length > 0;
   }
 
-  async listSessionEventsAfter(sessionId: string, afterEventId?: string): Promise<DrizzleRelayOutboxRow[]> {
-    const baseWhere = and(eq(outboxEvent.aggregate, "session"), eq(outboxEvent.aggregateId, sessionId));
+  async listSessionEventsAfter(
+    sessionId: string,
+    afterEventId?: string,
+  ): Promise<DrizzleRelayOutboxRow[]> {
+    const baseWhere = and(
+      eq(outboxEvent.aggregate, "session"),
+      eq(outboxEvent.aggregateId, sessionId),
+    );
     const cursorWhere = afterEventId ? replayCursorWhere(sessionId, afterEventId) : undefined;
 
     const rows = await this.db
