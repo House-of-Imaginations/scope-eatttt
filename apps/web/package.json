@@ -7,6 +7,7 @@
 		"build": "pnpm with-env svelte-kit sync && tsc --noEmit",
 		"check-types": "pnpm with-env svelte-kit sync && tsc --noEmit",
 		"test": "pnpm with-env vitest run",
+		"test:e2e": "playwright test",
 		"dev": "pnpm with-env vite dev",
 		"with-env": "dotenv -e ../../.env --"
 	},

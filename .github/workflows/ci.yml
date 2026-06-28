@@ -28,6 +28,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # with-env wraps commands in dotenv -e ../../.env; seed a CI .env from the
+      # example with a non-placeholder BETTER_AUTH_SECRET (rejected if placeholder).
+      - name: Seed CI env
+        run: |
+          cp .env.example .env
+          sed -i 's|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET='"$(openssl rand -base64 48)"'|' .env
+
       - name: Lint + format check (Biome)
         run: pnpm check
 
@@ -39,3 +46,34 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  e2e:
+    name: E2E (mock-backed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Seed CI env
+        run: |
+          cp .env.example .env
+          sed -i 's|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET='"$(openssl rand -base64 48)"'|' .env
+
+      - name: Install Playwright browsers
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      # mock-backed specs only (PUBLIC_USE_MOCK=1 via playwright.config webServer);
+      # the real-stack e2e-real/e2e-accounts specs need docker + worker and run elsewhere.
+      - name: Run Playwright (mock)
+        run: pnpm --filter web test:e2e

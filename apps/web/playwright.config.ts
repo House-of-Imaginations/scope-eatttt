@@ -3,7 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
 	testDir: "./tests",
 	testMatch: "**/*.spec.ts",
-	testIgnore: "**/e2e-real.spec.ts",
+	// real-stack specs (docker + worker) run only under playwright.real.config.ts
+	testIgnore: ["**/e2e-real.spec.ts", "**/e2e-accounts.spec.ts"],
 	fullyParallel: false,
 	retries: 0,
 	use: {
