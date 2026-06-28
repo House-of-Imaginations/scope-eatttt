@@ -26,7 +26,6 @@
     oncreated: (result: { sessionId: string; joinCode: string; memberId: string }) => void;
   } = $props();
 
-  // Form state (Svelte 5 runes)
   let lat = $state<number | null>(null);
   let lng = $state<number | null>(null);
   let manualLat = $state("");
@@ -36,7 +35,6 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
 
-  // New fields
   let title = $state("");
   let pollDurationSec = $state<60 | 180 | 300 | 600>(300);
   let promoteThreshold = $state(2);
@@ -69,7 +67,6 @@
     selected = next;
   }
 
-  // Resolved coords: prefer geolocation, fall back to manual inputs
   function resolvedCoords(): { lat: number; lng: number } | null {
     if (lat !== null && lng !== null) return { lat, lng };
     const pLat = parseFloat(manualLat);
@@ -116,7 +113,6 @@
 </script>
 
 <form onsubmit={handleSubmit}>
-  <!-- Session name (optional) -->
   <div class="field-row">
     <label class="field-label" for="session-name-input">Session name</label>
     <input
@@ -130,7 +126,6 @@
     />
   </div>
 
-  <!-- Manual lat/lng fallback: always rendered but visually hidden until needed -->
   <fieldset class="location-fallback" class:visible={geoError || (lat === null && lng === null)}>
     <legend class="fallback-legend">Enter your location</legend>
     <div class="coord-row">
@@ -180,7 +175,6 @@
     </div>
   </section>
 
-  <!-- Poll timer -->
   <div class="field-row">
     <label class="field-label" for="poll-timer-select">Poll timer</label>
     <select
@@ -195,7 +189,6 @@
     </select>
   </div>
 
-  <!-- Promote threshold -->
   <div class="field-row">
     <label class="field-label" for="threshold-select">Promote threshold</label>
     <select
@@ -222,7 +215,6 @@
 </form>
 
 <style>
-  /* New optional field row */
   .field-row {
     display: flex;
     align-items: center;
@@ -257,7 +249,6 @@
     box-shadow: 3px 3px 0 var(--color-accent);
   }
 
-  /* Location fallback: hidden by default, shown when geo unavailable */
   .location-fallback {
     border: 3px solid var(--color-stroke);
     border-radius: var(--radius-lg);
@@ -319,7 +310,6 @@
     margin: 0 0 16px;
   }
 
-  /* Cuisine section */
   .cuisine-section {
     margin-bottom: 24px;
   }
@@ -375,7 +365,6 @@
     box-shadow: 1px 1px 0 var(--color-stroke);
   }
 
-  /* Error */
   .error-msg {
     font-family: var(--font-body);
     font-size: 14px;
@@ -386,7 +375,6 @@
     border-radius: var(--radius-lg);
   }
 
-  /* Submit */
   .submit-row {
     display: flex;
     justify-content: flex-end;

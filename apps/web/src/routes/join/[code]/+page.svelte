@@ -22,7 +22,6 @@
     });
   });
 
-  // Disable submit when name is blank or request in flight
   const canSubmit = $derived(displayName.trim().length > 0 && !loading);
 
   // Shared join → store → navigate. Both paths feed it a display name.

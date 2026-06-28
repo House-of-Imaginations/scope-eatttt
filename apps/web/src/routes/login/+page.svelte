@@ -6,7 +6,6 @@
   import { parsePublicEnv } from "@scope/config";
   import { Button } from "@scope/ui";
 
-  // Read via $env/static/public — PUBLIC_* is not on import.meta.env in the browser.
   const googleEnabled = parsePublicEnv({ PUBLIC_GOOGLE_ENABLED }).googleEnabled;
 
   // ponytail: query read via $app/state, same idiom as the join screen.
