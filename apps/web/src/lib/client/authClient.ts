@@ -13,7 +13,9 @@ export async function getCurrentUser(): Promise<{
   image: string | null;
 } | null> {
   try {
-    const resp = await fetch("/api/auth/get-session", { credentials: "include" });
+    const resp = await fetch("/api/auth/get-session", {
+      credentials: "include",
+    });
     if (!resp.ok) return null;
     const data = await resp.json().catch(() => null);
     if (!data?.user || !data?.session) return null;
@@ -54,13 +56,15 @@ export async function signInEmail({
 }
 
 export function signInGoogle(redirect: string): void {
-  window.location.href =
-    "/api/auth/sign-in/social?provider=google&callbackURL=" + encodeURIComponent(redirect);
+  window.location.href = `/api/auth/sign-in/social?provider=google&callbackURL=${encodeURIComponent(redirect)}`;
 }
 
 export async function signOut(): Promise<void> {
   try {
-    await fetch("/api/auth/sign-out", { method: "POST", credentials: "include" });
+    await fetch("/api/auth/sign-out", {
+      method: "POST",
+      credentials: "include",
+    });
   } catch (err) {
     log.error("signOut failed", { error: err });
   }

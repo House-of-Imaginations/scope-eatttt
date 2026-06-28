@@ -1,10 +1,20 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { AddMemberRecord, CreateSessionRecord, OutboxWrite } from "@scope/core";
+import {
+  createDatabaseClients,
+  lunchSession,
+  outboxEvent,
+  type pollCandidate,
+  restaurantCache,
+  type sessionMember,
+  type swipe,
+  user,
+  type vote,
+} from "@scope/db";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { getTableName } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import type { AddMemberRecord, CreateSessionRecord, OutboxWrite } from "@scope/core";
-import { createDatabaseClients, lunchSession, outboxEvent, pollCandidate, restaurantCache, sessionMember, swipe, user, vote } from "@scope/db";
 import { DrizzleSessionRepo } from "./drizzleRepo";
 
 const testTimestamp = "2026-06-20T01:02:03.000Z";
@@ -66,7 +76,13 @@ describe("DrizzleSessionRepo", () => {
             },
           },
         ]);
-        await repo.insertOutbox(tx, outboxInput({ aggregateId: testSessionUuid, type: "deck.replenished" }));
+        await repo.insertOutbox(
+          tx,
+          outboxInput({
+            aggregateId: testSessionUuid,
+            type: "deck.replenished",
+          }),
+        );
       });
 
       await expect(clients.db.select().from(restaurantCache)).resolves.toHaveLength(1);
@@ -74,10 +90,13 @@ describe("DrizzleSessionRepo", () => {
 
       await repo.withTx(async (tx) => {
         await repo.createSession(tx, sessionInput({ id: testSessionUuid, title: "Friday lunch" }));
-        await repo.addMember(tx, memberInput({
-          id: "00000000-0000-4000-8000-000000000101",
-          sessionId: testSessionUuid,
-        }));
+        await repo.addMember(
+          tx,
+          memberInput({
+            id: "00000000-0000-4000-8000-000000000101",
+            sessionId: testSessionUuid,
+          }),
+        );
         const { candidateId } = await repo.addCandidate(tx, {
           sessionId: testSessionUuid,
           restaurantId: "place-1",
@@ -88,14 +107,16 @@ describe("DrizzleSessionRepo", () => {
       });
 
       await repo.withTx(async (tx) => {
-        await expect(repo.listSessionsForUser(tx, "u1")).resolves.toEqual([{
-          id: testSessionUuid,
-          title: "Friday lunch",
-          joinCode: "ABCD",
-          status: "decided",
-          createdAt: testTimestamp,
-          winnerName: "Noodle House",
-        }]);
+        await expect(repo.listSessionsForUser(tx, "u1")).resolves.toEqual([
+          {
+            id: testSessionUuid,
+            title: "Friday lunch",
+            joinCode: "ABCD",
+            status: "decided",
+            createdAt: testTimestamp,
+            winnerName: "Noodle House",
+          },
+        ]);
         await expect(repo.getSessionSummary(tx, testSessionUuid, "stranger")).resolves.toBeNull();
         await expect(repo.getSessionSummary(tx, testSessionUuid, "u1")).resolves.toMatchObject({
           id: testSessionUuid,
@@ -137,7 +158,12 @@ describe("DrizzleSessionRepo", () => {
       await repo.upsertRestaurants(tx, [
         {
           cachedAt: testTimestamp,
-          restaurant: { id: "place-1", name: "Noodle House", address: "1 Main St", cuisineTags: ["thai"] },
+          restaurant: {
+            id: "place-1",
+            name: "Noodle House",
+            address: "1 Main St",
+            cuisineTags: ["thai"],
+          },
         },
       ]);
     });
@@ -173,21 +199,23 @@ describe("DrizzleSessionRepo", () => {
 
   it("maps session and member rows from reads", async () => {
     const db = makeFakeDb({
-      lunch_session: [{
-        id: "s1",
-        joinCode: "ABCD",
-        hostUserId: "u1",
-        status: "swiping",
-        title: "Friday lunch",
-        lat: -37.8136,
-        lng: 144.9631,
-        radiusM: 500,
-        cuisines: ["thai"],
-        pollDurationSec: 180,
-        promoteThreshold: 3,
-        pollDeadlineAt: new Date(pollDeadline),
-        winnerCandidateId: "00000000-0000-4000-8000-000000000301",
-      }],
+      lunch_session: [
+        {
+          id: "s1",
+          joinCode: "ABCD",
+          hostUserId: "u1",
+          status: "swiping",
+          title: "Friday lunch",
+          lat: -37.8136,
+          lng: 144.9631,
+          radiusM: 500,
+          cuisines: ["thai"],
+          pollDurationSec: 180,
+          promoteThreshold: 3,
+          pollDeadlineAt: new Date(pollDeadline),
+          winnerCandidateId: "00000000-0000-4000-8000-000000000301",
+        },
+      ],
       session_member: [
         {
           id: "m1",
@@ -258,52 +286,69 @@ describe("DrizzleSessionRepo", () => {
   it("lists dashboard history and member-gates session summaries", async () => {
     const summaryId = "00000000-0000-4000-8000-000000000001";
     const db = makeFakeDb({
-      lunch_session: [{
-        id: summaryId,
-        title: "Friday lunch",
-        joinCode: "ABCD",
-        status: "decided",
-        createdAt: new Date(testTimestamp),
-        winnerCandidateId: "c1",
-        winnerName: "Noodle House",
-      }, {
-        id: summaryId,
-        title: "Friday lunch",
-        joinCode: "ABCD",
-        status: "decided",
-        createdAt: new Date(testTimestamp),
-        winnerCandidateId: "c1",
-        winnerName: "Noodle House",
-      }],
-      session_member: [{ id: "m1", sessionId: summaryId, userId: "u1", displayName: "Ada", image: null, isHost: true, joinedAt: new Date(testTimestamp) }],
-      poll_candidate: [{
-        id: "c1",
-        candidateId: "c1",
-        promotedAt: new Date(testTimestamp),
-        net: 1,
-        up: 1,
-        down: 0,
-        name: "Noodle House",
-        address: "1 Main St",
-        cuisineTags: ["thai"],
-        lat: null,
-        lng: null,
-        rating: null,
-        priceLevel: null,
-        distanceM: null,
-      }],
+      lunch_session: [
+        {
+          id: summaryId,
+          title: "Friday lunch",
+          joinCode: "ABCD",
+          status: "decided",
+          createdAt: new Date(testTimestamp),
+          winnerCandidateId: "c1",
+          winnerName: "Noodle House",
+        },
+        {
+          id: summaryId,
+          title: "Friday lunch",
+          joinCode: "ABCD",
+          status: "decided",
+          createdAt: new Date(testTimestamp),
+          winnerCandidateId: "c1",
+          winnerName: "Noodle House",
+        },
+      ],
+      session_member: [
+        {
+          id: "m1",
+          sessionId: summaryId,
+          userId: "u1",
+          displayName: "Ada",
+          image: null,
+          isHost: true,
+          joinedAt: new Date(testTimestamp),
+        },
+      ],
+      poll_candidate: [
+        {
+          id: "c1",
+          candidateId: "c1",
+          promotedAt: new Date(testTimestamp),
+          net: 1,
+          up: 1,
+          down: 0,
+          name: "Noodle House",
+          address: "1 Main St",
+          cuisineTags: ["thai"],
+          lat: null,
+          lng: null,
+          rating: null,
+          priceLevel: null,
+          distanceM: null,
+        },
+      ],
     });
     const repo = new DrizzleSessionRepo(db);
 
     await repo.withTx(async (tx) => {
-      await expect(repo.listSessionsForUser(tx, "u1")).resolves.toEqual([{
-        id: summaryId,
-        title: "Friday lunch",
-        joinCode: "ABCD",
-        status: "decided",
-        createdAt: testTimestamp,
-        winnerName: "Noodle House",
-      }]);
+      await expect(repo.listSessionsForUser(tx, "u1")).resolves.toEqual([
+        {
+          id: summaryId,
+          title: "Friday lunch",
+          joinCode: "ABCD",
+          status: "decided",
+          createdAt: testTimestamp,
+          winnerName: "Noodle House",
+        },
+      ]);
       await expect(repo.getSessionSummary(tx, summaryId, "u1")).resolves.toMatchObject({
         id: summaryId,
         title: "Friday lunch",
@@ -349,7 +394,13 @@ describe("DrizzleSessionRepo", () => {
       ).resolves.toEqual({ created: true });
       await expect(repo.countAccepts(tx, "s1", "r1")).resolves.toBe(2);
       await expect(repo.isCandidate(tx, "s1", "r1")).resolves.toBe(true);
-      await expect(repo.addCandidate(tx, { sessionId: "s1", restaurantId: "r1", promotedAt: testTimestamp })).resolves.toEqual({
+      await expect(
+        repo.addCandidate(tx, {
+          sessionId: "s1",
+          restaurantId: "r1",
+          promotedAt: testTimestamp,
+        }),
+      ).resolves.toEqual({
         candidateId: "c1",
       });
       await repo.updateMemberRadius(tx, "s1", "u1", 1000);
@@ -434,9 +485,19 @@ describe("DrizzleSessionRepo", () => {
     await repo.withTx(async (tx) => {
       await expect(repo.isHost(tx, "s1", "u1")).resolves.toBe(true);
       await repo.startPoll(tx, "s1", pollDeadline);
-      await repo.upsertVote(tx, { sessionId: "s1", candidateId: "c1", userId: "u1", memberId: "m1", value: 1 });
+      await repo.upsertVote(tx, {
+        sessionId: "s1",
+        candidateId: "c1",
+        userId: "u1",
+        memberId: "m1",
+        value: 1,
+      });
       await expect(repo.candidateBelongsToSession(tx, "s1", "c1")).resolves.toBe(true);
-      await expect(repo.tally(tx, "c1")).resolves.toEqual({ up: 2, down: 1, net: 1 });
+      await expect(repo.tally(tx, "c1")).resolves.toEqual({
+        up: 2,
+        down: 1,
+        net: 1,
+      });
       await expect(repo.listCandidatesWithTally(tx, "s1")).resolves.toEqual([
         { id: "c1", promotedAt: testTimestamp, net: 1 },
         { id: "c2", promotedAt: nextTimestamp, net: 0 },
@@ -557,11 +618,21 @@ function outboxInput(overrides: Partial<OutboxWrite> = {}): OutboxWrite {
   };
 }
 
-async function applyMigrations(sqlClient: ReturnType<typeof createDatabaseClients>["pooledSql"]): Promise<void> {
+async function applyMigrations(
+  sqlClient: ReturnType<typeof createDatabaseClients>["pooledSql"],
+): Promise<void> {
   await sqlClient`set client_min_messages to warning`;
 
-  for (const file of ["0000_normal_gateway.sql", "0001_outbox_trigger.sql", "0002_member_scoped_activity.sql", "0003_mute_slapstick.sql"]) {
-    const migration = readFileSync(resolve(import.meta.dirname, "../../../db/migrations", file), "utf8");
+  for (const file of [
+    "0000_normal_gateway.sql",
+    "0001_outbox_trigger.sql",
+    "0002_member_scoped_activity.sql",
+    "0003_mute_slapstick.sql",
+  ]) {
+    const migration = readFileSync(
+      resolve(import.meta.dirname, "../../../db/migrations", file),
+      "utf8",
+    );
 
     for (const statement of migration.split("--> statement-breakpoint")) {
       const trimmed = statement.trim();
@@ -626,11 +697,16 @@ function makeFakeContext(rows: Partial<Record<TableName, unknown[]>>): FakeConte
 function makeFakeDrizzle(ctx: FakeContext): {
   insert(table: unknown): { values(values: unknown): FakeInsertValuesBuilder };
   select(selection?: unknown): { from(table: unknown): FakeSelectChain };
-  update(table: unknown): { set(set: unknown): { where(condition?: unknown): FakeUpdateWhereBuilder } };
+  update(table: unknown): {
+    set(set: unknown): { where(condition?: unknown): FakeUpdateWhereBuilder };
+  };
 } {
   return {
     insert(table: unknown) {
-      const operation: FakeOperation = { kind: "insert", table: tableName(table) };
+      const operation: FakeOperation = {
+        kind: "insert",
+        table: tableName(table),
+      };
       ctx.operations.push(operation);
       return {
         values(values: unknown) {
@@ -653,7 +729,10 @@ function makeFakeDrizzle(ctx: FakeContext): {
     select() {
       return {
         from(table: unknown) {
-          const operation: FakeOperation = { kind: "select", table: tableName(table) };
+          const operation: FakeOperation = {
+            kind: "select",
+            table: tableName(table),
+          };
           ctx.operations.push(operation);
           const chain = {
             where: () => chain,
@@ -661,6 +740,7 @@ function makeFakeDrizzle(ctx: FakeContext): {
             groupBy: () => chain,
             orderBy: () => chain,
             limit: () => rowsPromise(ctx, operation.table),
+            // biome-ignore lint/suspicious/noThenProperty: test mock chain needs .then to be awaitable
             then: (resolve: (value: unknown[]) => unknown, reject?: (reason: unknown) => unknown) =>
               rowsPromise(ctx, operation.table).then(resolve, reject),
           };
@@ -669,7 +749,10 @@ function makeFakeDrizzle(ctx: FakeContext): {
       };
     },
     update(table: unknown) {
-      const operation: FakeOperation = { kind: "update", table: tableName(table) };
+      const operation: FakeOperation = {
+        kind: "update",
+        table: tableName(table),
+      };
       ctx.operations.push(operation);
       return {
         set(set: unknown) {
@@ -699,7 +782,10 @@ interface FakeSelectChain {
   groupBy(...columns: unknown[]): FakeSelectChain;
   orderBy(...columns: unknown[]): FakeSelectChain;
   limit(count?: number): Promise<unknown[]>;
-  then(resolve: (value: unknown[]) => unknown, reject?: (reason: unknown) => unknown): Promise<unknown>;
+  then(
+    resolve: (value: unknown[]) => unknown,
+    reject?: (reason: unknown) => unknown,
+  ): Promise<unknown>;
 }
 
 interface FakeUpdateWhereBuilder extends PromiseLike<unknown[]> {
@@ -716,6 +802,7 @@ function updateWhere(ctx: FakeContext, table: TableName): FakeUpdateWhereBuilder
   const promise = rowsPromise(ctx, table, generatedIdRows());
   return {
     returning: () => rowsPromise(ctx, table, generatedIdRows()),
+    // biome-ignore lint/suspicious/noThenProperty: test mock implements PromiseLike
     then<TResult1 = unknown[], TResult2 = never>(
       onfulfilled?: ((value: unknown[]) => TResult1 | PromiseLike<TResult1>) | null,
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
