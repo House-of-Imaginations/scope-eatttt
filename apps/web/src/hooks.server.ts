@@ -15,7 +15,10 @@ export const handle: Handle = async ({ event, resolve }) => {
   ensureRelayStarted();
 
   const env = loadEnv();
-  if (env.RATE_LIMIT_ENABLED) {
+  // ponytail: same prod fallback as Better Auth Layer 1 (auth.ts) — backstop
+  // self-activates in prod even when RATE_LIMIT_ENABLED is left unset.
+  const rateLimitOn = env.RATE_LIMIT_ENABLED ?? process.env.NODE_ENV === "production";
+  if (rateLimitOn) {
     const path = event.url.pathname;
     // ponytail: skip SSE path — long-lived stream, rate-limiting kills live updates.
     if (!/^\/api\/sessions\/[^/]+\/events/.test(path)) {

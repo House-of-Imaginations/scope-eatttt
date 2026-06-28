@@ -9,10 +9,16 @@ export async function checkRateLimit(
   limit: number,
   windowSec: number,
 ): Promise<{ ok: boolean; retryAfter: number }> {
-  const count = await redis.incr(`rl:${key}`);
-  if (count === 1) await redis.expire(`rl:${key}`, windowSec);
+  const k = `rl:${key}`;
+  const count = await redis.incr(k);
+  // ponytail: re-assert TTL whenever the key has none (count===1 OR a prior
+  // crash between incr/expire orphaned it) so a key can never get stuck
+  // counter-without-expiry and block an IP forever. ttl<0 means no expiry set.
+  if (count === 1 || (await redis.ttl(k)) < 0) {
+    await redis.expire(k, windowSec);
+  }
   if (count > limit) {
-    const ttl = await redis.ttl(`rl:${key}`);
+    const ttl = await redis.ttl(k);
     return { ok: false, retryAfter: ttl > 0 ? ttl : windowSec };
   }
   return { ok: true, retryAfter: 0 };

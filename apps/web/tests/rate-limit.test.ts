@@ -5,6 +5,7 @@ import { checkRateLimit } from "../src/lib/server/rateLimit";
 class FakeRedis {
 	private counts = new Map<string, number>();
 	private ttls = new Map<string, number>();
+	expireCalls = 0;
 
 	async incr(key: string): Promise<number> {
 		const next = (this.counts.get(key) ?? 0) + 1;
@@ -13,11 +14,18 @@ class FakeRedis {
 	}
 
 	async expire(key: string, seconds: number): Promise<void> {
+		this.expireCalls++;
 		this.ttls.set(key, seconds);
 	}
 
 	async ttl(key: string): Promise<number> {
 		return this.ttls.get(key) ?? -1;
+	}
+
+	// test seam: simulate an orphaned key (counter set, no TTL) from a crash
+	// between incr and expire.
+	seedOrphan(key: string, count: number): void {
+		this.counts.set(`rl:${key}`, count);
 	}
 }
 
@@ -46,5 +54,16 @@ describe("checkRateLimit", () => {
 		const allowed = await checkRateLimit(redis, "ip:2.2.2.2", 1, 60);
 		expect(blocked.ok).toBe(false);
 		expect(allowed.ok).toBe(true);
+	});
+
+	it("self-heals an orphaned key (counter without TTL) instead of blocking forever", async () => {
+		const redis = new FakeRedis();
+		// crash left a counter past the limit with no expiry set.
+		redis.seedOrphan("ip:9.9.9.9", 5);
+		const r = await checkRateLimit(redis, "ip:9.9.9.9", 2, 60);
+		expect(r.ok).toBe(false);
+		// re-asserted EXPIRE, so retryAfter is the window, not a stuck -1.
+		expect(r.retryAfter).toBe(60);
+		expect(redis.expireCalls).toBe(1);
 	});
 });
