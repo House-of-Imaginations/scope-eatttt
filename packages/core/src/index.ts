@@ -14,7 +14,6 @@ export * from "./ports/streak";
 export * from "./domain/session";
 export * from "./domain/swipe";
 export * from "./domain/poll";
-export * from "./domain/auth";
 export * from "./domain/dashboard";
 export {
   createSession as createSessionCommand,
