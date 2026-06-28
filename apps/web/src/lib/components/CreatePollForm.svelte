@@ -34,16 +34,16 @@ const {
 
 let lat = $state<number | null>(null);
 let lng = $state<number | null>(null);
-const manualLat = $state("");
-const manualLng = $state("");
+let manualLat = $state("");
+let manualLng = $state("");
 let geoError = $state(false);
 let selected = $state<Set<string>>(new Set());
 let loading = $state(false);
 let error = $state<string | null>(null);
 
-const title = $state("");
-const pollDurationSec = $state<60 | 180 | 300 | 600>(300);
-const promoteThreshold = $state(2);
+let title = $state("");
+let pollDurationSec = $state<60 | 180 | 300 | 600>(300);
+let promoteThreshold = $state(2);
 
 // Attempt geolocation on mount; show manual fallback on failure
 $effect(() => {

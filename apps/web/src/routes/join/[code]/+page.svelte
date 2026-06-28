@@ -9,7 +9,7 @@ import { Button } from "@scope/ui";
 // ponytail: route param read via $app/state (SvelteKit 2 / Svelte 5 runes)
 const code = $derived(page.params.code ?? "");
 
-const displayName = $state("");
+let displayName = $state("");
 let loading = $state(false);
 let error = $state<string | null>(null);
 // Real (non-anon) account name once the mount check resolves; null = guest path.

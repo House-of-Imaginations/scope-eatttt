@@ -15,9 +15,9 @@ const redirect = $derived(
 );
 const loginHref = $derived(`/login?redirect=${encodeURIComponent(redirect)}`);
 
-const name = $state("");
-const email = $state("");
-const password = $state("");
+let name = $state("");
+let email = $state("");
+let password = $state("");
 let loading = $state(false);
 let error = $state<string | null>(null);
 

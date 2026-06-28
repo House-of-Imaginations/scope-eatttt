@@ -14,8 +14,8 @@ const redirect = $derived(
 );
 const signupHref = $derived(`/signup?redirect=${encodeURIComponent(redirect)}`);
 
-const email = $state("");
-const password = $state("");
+let email = $state("");
+let password = $state("");
 let loading = $state(false);
 let error = $state<string | null>(null);
 
