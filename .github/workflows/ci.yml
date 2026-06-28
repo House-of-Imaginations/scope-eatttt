@@ -35,6 +35,9 @@ jobs:
           cp .env.example .env
           sed -i 's|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET='"$(openssl rand -base64 48)"'|' .env
 
+      - name: Install UI Playwright browsers
+        run: pnpm --filter @scope/ui exec playwright install --with-deps chromium
+
       - name: Lint + format check (Biome)
         run: pnpm check
 
@@ -69,6 +72,8 @@ jobs:
         run: |
           cp .env.example .env
           sed -i 's|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET='"$(openssl rand -base64 48)"'|' .env
+          sed -i 's|^PUBLIC_USE_MOCK=.*|PUBLIC_USE_MOCK=1|' .env
+          sed -i 's|^PUBLIC_GOOGLE_ENABLED=.*|PUBLIC_GOOGLE_ENABLED=1|' .env
 
       - name: Install Playwright browsers
         run: pnpm --filter web exec playwright install --with-deps chromium

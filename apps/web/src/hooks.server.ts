@@ -12,6 +12,15 @@ import { svelteKitHandler } from "better-auth/svelte-kit";
 configureBackendLogging({ service: "web" });
 
 export const handle: Handle = async ({ event, resolve }) => {
+  if (isMockMode()) {
+    event.locals.session = null;
+    event.locals.user = null;
+    if (event.url.pathname === "/api/auth/get-session") {
+      return Response.json({ user: null, session: null });
+    }
+    return resolve(event);
+  }
+
   ensureRelayStarted();
 
   const env = loadEnv();
@@ -46,3 +55,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   return svelteKitHandler({ event, resolve, auth, building });
 };
+
+function isMockMode(): boolean {
+  return (
+    process.env.NODE_ENV !== "production" &&
+    (process.env.PUBLIC_USE_MOCK === "1" || process.env.PUBLIC_USE_MOCK === "true")
+  );
+}
