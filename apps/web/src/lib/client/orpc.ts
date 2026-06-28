@@ -1,11 +1,11 @@
+import { PUBLIC_USE_MOCK } from "$env/static/public";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
-import type { contract } from "@scope/contract";
-import { PUBLIC_USE_MOCK } from "$env/static/public";
 import { parsePublicEnv } from "@scope/config";
-import { makeMockApi } from "./mockHandler";
+import type { contract } from "@scope/contract";
 import { ensureAnonSession } from "./auth";
+import { makeMockApi } from "./mockHandler";
 
 // Fully-typed client inferred from the oRPC contract. Each leaf becomes
 // (input) => Promise<output> — do not hand-roll the mapped type (the contract's
@@ -21,10 +21,7 @@ function buildRealClient(): Api {
   // In the browser, build from window.location.origin; in SSR (Node), use a
   // placeholder origin (the RPCLink is never called server-side).
   // ponytail: inline origin derivation, no abstraction.
-  const origin =
-    typeof window !== "undefined"
-      ? window.location.origin
-      : "http://localhost:5173";
+  const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:5173";
 
   // ponytail: fetch wrapper that awaits ensureAnonSession() before every RPC
   // request, killing the race between the layout onMount bootstrap and each
@@ -41,6 +38,4 @@ function buildRealClient(): Api {
   return createORPCClient(link);
 }
 
-export const api: Api = USE_MOCK
-  ? (makeMockApi() as unknown as Api)
-  : buildRealClient();
+export const api: Api = USE_MOCK ? (makeMockApi() as unknown as Api) : buildRealClient();

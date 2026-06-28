@@ -55,15 +55,18 @@ describe("ensureAnonSession", () => {
 
   it("resolves without throwing when the first fetch throws but the second succeeds (transient failure)", async () => {
     let callCount = 0;
-    vi.stubGlobal("fetch", vi.fn(async (_url: string) => {
-      callCount++;
-      if (callCount === 1) {
-        // First call: transient fetch error — simulates cold-start network blip.
-        throw new TypeError("Failed to fetch");
-      }
-      // Second call: get-session succeeds and returns an existing session.
-      return sessionOk();
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string) => {
+        callCount++;
+        if (callCount === 1) {
+          // First call: transient fetch error — simulates cold-start network blip.
+          throw new TypeError("Failed to fetch");
+        }
+        // Second call: get-session succeeds and returns an existing session.
+        return sessionOk();
+      }),
+    );
 
     const promise = ensureAnonSession();
     await vi.runAllTimersAsync();
@@ -76,28 +79,31 @@ describe("ensureAnonSession", () => {
 
   it("signs in anonymously when get-session returns no session", async () => {
     const urls: string[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
-      urls.push(url);
-      return url.includes("sign-in") ? signInOk() : noSession();
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        urls.push(url);
+        return url.includes("sign-in") ? signInOk() : noSession();
+      }),
+    );
 
     const promise = ensureAnonSession();
     await vi.runAllTimersAsync();
     await expect(promise).resolves.toBeUndefined();
 
     // get-session (no session) → anonymous sign-in POST, in that order.
-    expect(urls).toEqual([
-      "/api/auth/get-session",
-      "/api/auth/sign-in/anonymous",
-    ]);
+    expect(urls).toEqual(["/api/auth/get-session", "/api/auth/sign-in/anonymous"]);
   });
 
   it("resolves (does not reject) when fetch always throws — exhausts retries gracefully", async () => {
     let callCount = 0;
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      callCount++;
-      throw new TypeError("Failed to fetch");
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        callCount++;
+        throw new TypeError("Failed to fetch");
+      }),
+    );
 
     const promise = ensureAnonSession();
     await vi.runAllTimersAsync();

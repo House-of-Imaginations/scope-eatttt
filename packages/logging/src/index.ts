@@ -1,11 +1,11 @@
 import {
+  type LogLevel,
   configureSync,
   getConfig,
   getConsoleSink,
   getLogger,
   isLogLevel,
   resetSync,
-  type LogLevel,
 } from "@logtape/logtape";
 
 export type { LogLevel };

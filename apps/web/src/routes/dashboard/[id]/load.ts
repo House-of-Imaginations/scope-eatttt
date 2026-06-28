@@ -1,5 +1,5 @@
-import { getSessionSummary, type DashboardDeps } from "@scope/core";
 import type { DashboardSessionSummary } from "@scope/contract";
+import { type DashboardDeps, getSessionSummary } from "@scope/core";
 import { requireRealUser } from "../_guard.js";
 
 export async function loadSummary<Tx>(

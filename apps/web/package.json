@@ -1,42 +1,43 @@
 {
-  "name": "web",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "build": "pnpm with-env svelte-kit sync && tsc --noEmit",
-    "check-types": "pnpm with-env svelte-kit sync && tsc --noEmit",
-    "test": "pnpm with-env vitest run",
-    "dev": "pnpm with-env vite dev",
-    "with-env": "dotenv -e ../../.env --"
-  },
-  "dependencies": {
-    "@better-auth/drizzle-adapter": "^1.6.20",
-    "@orpc/client": "^1.14.6",
-    "@orpc/contract": "^1.14.4",
-    "@orpc/server": "^1.14.6",
-    "@scope/adapters": "workspace:*",
-    "@scope/config": "workspace:*",
-    "@scope/contract": "workspace:^",
-    "@scope/core": "workspace:^",
-    "@scope/db": "workspace:*",
-    "@scope/logging": "workspace:*",
-    "@scope/tokens": "workspace:*",
-    "@scope/ui": "workspace:*",
-    "@sveltejs/adapter-node": "^5.5.4",
-    "@sveltejs/kit": "^2.66.0",
-    "better-auth": "^1.6.20",
-    "dotenv-cli": "^11.0.0",
-    "svelte": "^5.56.3",
-    "vite": "^8.0.16"
-  },
-  "devDependencies": {
-    "@playwright/test": "1.61.0",
-    "@sveltejs/vite-plugin-svelte": "^5.0.3",
-    "@tailwindcss/vite": "^4.1.11",
-    "@testcontainers/postgresql": "^12.0.3",
-    "tailwindcss": "^4.1.11",
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
-  }
+	"name": "web",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "pnpm with-env svelte-kit sync && tsc --noEmit",
+		"check-types": "pnpm with-env svelte-kit sync && tsc --noEmit",
+		"test": "pnpm with-env vitest run",
+		"test:e2e": "playwright test",
+		"dev": "pnpm with-env vite dev",
+		"with-env": "dotenv -e ../../.env --"
+	},
+	"dependencies": {
+		"@better-auth/drizzle-adapter": "^1.6.20",
+		"@orpc/client": "^1.14.6",
+		"@orpc/contract": "^1.14.4",
+		"@orpc/server": "^1.14.6",
+		"@scope/adapters": "workspace:*",
+		"@scope/config": "workspace:*",
+		"@scope/contract": "workspace:^",
+		"@scope/core": "workspace:^",
+		"@scope/db": "workspace:*",
+		"@scope/logging": "workspace:*",
+		"@scope/tokens": "workspace:*",
+		"@scope/ui": "workspace:*",
+		"@sveltejs/adapter-node": "^5.5.4",
+		"@sveltejs/kit": "^2.66.0",
+		"better-auth": "^1.6.20",
+		"dotenv-cli": "^11.0.0",
+		"svelte": "^5.56.3",
+		"vite": "^8.0.16"
+	},
+	"devDependencies": {
+		"@playwright/test": "1.61.0",
+		"@sveltejs/vite-plugin-svelte": "^7.1.2",
+		"@tailwindcss/vite": "^4.1.11",
+		"@testcontainers/postgresql": "^12.0.3",
+		"tailwindcss": "^4.1.11",
+		"typescript": "^5.8.3",
+		"vitest": "^3.2.4"
+	}
 }

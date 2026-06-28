@@ -1,5 +1,11 @@
 import { ORPCError, implement } from "@orpc/server";
-import { contract, type Candidate, type Member, type Restaurant, type SessionState } from "@scope/contract";
+import {
+  type Candidate,
+  type Member,
+  type Restaurant,
+  type SessionState,
+  contract,
+} from "@scope/contract";
 import type { AddMemberRecord, AuthUser, SessionSummary, StreakStore } from "@scope/core";
 import {
   NotHostError,
@@ -47,7 +53,13 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
     session: {
       create: os.session.create.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const result = await createSessionCommand({ repo: container.repo, ids, now }, input, user.id, user.displayName, user.image ?? undefined);
+        const result = await createSessionCommand(
+          { repo: container.repo, ids, now },
+          input,
+          user.id,
+          user.displayName,
+          user.image ?? undefined,
+        );
         await enqueuePlacesFetch(
           container,
           {
@@ -67,21 +79,43 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
       }),
       join: os.session.join.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const result = await joinSessionCommand({ repo: container.repo, ids, now }, input, user.id, user.image ?? undefined);
-        const session = await container.repo.withTx((tx) => container.repo.getSession(tx, result.sessionId));
+        const result = await joinSessionCommand(
+          { repo: container.repo, ids, now },
+          input,
+          user.id,
+          user.image ?? undefined,
+        );
+        const session = await container.repo.withTx((tx) =>
+          container.repo.getSession(tx, result.sessionId),
+        );
         if (!session) {
           throw new ORPCError("NOT_FOUND", { message: "Session not found" });
         }
-        await enqueuePlacesFetch(container, session, result.memberId, session.radiusM ?? container.config.RADIUS_BASE_M);
+        await enqueuePlacesFetch(
+          container,
+          session,
+          result.memberId,
+          session.radiusM ?? container.config.RADIUS_BASE_M,
+        );
         return result;
       }),
       startSwiping: os.session.startSwiping.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const { member } = await requireSessionMember(container, input.sessionId, user.id, input.memberId);
+        const { member } = await requireSessionMember(
+          container,
+          input.sessionId,
+          user.id,
+          input.memberId,
+        );
         if (!member.isHost) {
-          throw new ORPCError("NOT_HOST", { status: 403, message: "Only the host can perform this action" });
+          throw new ORPCError("NOT_HOST", {
+            status: 403,
+            message: "Only the host can perform this action",
+          });
         }
-        return mapDomainError(() => startSwipingCommand({ repo: container.repo }, input.sessionId, user.id));
+        return mapDomainError(() =>
+          startSwipingCommand({ repo: container.repo }, input.sessionId, user.id),
+        );
       }),
       state: os.session.state.handler(async ({ input, context }) => {
         const user = requireUser(context);
@@ -91,18 +125,32 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
       eventsSince: os.session.eventsSince.handler(async ({ input, context }) => {
         const user = requireUser(context);
         await requireMember(container, input.sessionId, user.id);
-        return (await container.relayStore.listSessionEventsAfter(input.sessionId, input.afterEventId)).map(outboxRowToEvent);
+        return (
+          await container.relayStore.listSessionEventsAfter(input.sessionId, input.afterEventId)
+        ).map(outboxRowToEvent);
       }),
     },
     swipe: {
       deck: os.swipe.deck.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const { member } = await requireSessionMember(container, input.sessionId, user.id, input.memberId);
-        return container.repo.withTx((tx) => container.repo.listDeckRestaurants(tx, input.sessionId, member.id, input.limit));
+        const { member } = await requireSessionMember(
+          container,
+          input.sessionId,
+          user.id,
+          input.memberId,
+        );
+        return container.repo.withTx((tx) =>
+          container.repo.listDeckRestaurants(tx, input.sessionId, member.id, input.limit),
+        );
       }),
       decide: os.swipe.decide.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const { session, member } = await requireSessionMember(container, input.sessionId, user.id, input.memberId);
+        const { session, member } = await requireSessionMember(
+          container,
+          input.sessionId,
+          user.id,
+          input.memberId,
+        );
 
         const restaurant = await requireRestaurant(container, input.restaurantId);
         const result = await decideSwipe(
@@ -137,19 +185,32 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
           return { promoted: result.promoted };
         }
 
-        return { promoted: result.promoted, candidate: candidateFromPromotion(result.candidateId, restaurant, now()) };
+        return {
+          promoted: result.promoted,
+          candidate: candidateFromPromotion(result.candidateId, restaurant, now()),
+        };
       }),
       broaden: os.swipe.broaden.handler(async ({ input, context }) => {
         const user = requireUser(context);
         if (input.userId !== user.id) {
-          throw new ORPCError("FORBIDDEN", { status: 403, message: "Cannot broaden another member's deck" });
+          throw new ORPCError("FORBIDDEN", {
+            status: 403,
+            message: "Cannot broaden another member's deck",
+          });
         }
 
-        const { session, member } = await requireSessionMember(container, input.sessionId, user.id, input.memberId);
+        const { session, member } = await requireSessionMember(
+          container,
+          input.sessionId,
+          user.id,
+          input.memberId,
+        );
         const currentRadiusM = member.radiusM ?? session.radiusM ?? container.config.RADIUS_BASE_M;
         const radiusM = Math.min(currentRadiusM + input.stepM, container.config.RADIUS_CAP_M);
 
-        await container.repo.withTx((tx) => container.repo.updateMemberRadius(tx, input.sessionId, member.id, radiusM));
+        await container.repo.withTx((tx) =>
+          container.repo.updateMemberRadius(tx, input.sessionId, member.id, radiusM),
+        );
         await enqueuePlacesFetch(container, session, member.id, radiusM);
 
         return { radiusM, restaurants: [] };
@@ -158,30 +219,62 @@ export function createORPCRouter(deps: ORPCDeps = {}) {
     poll: {
       start: os.poll.start.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const { session, member } = await requireSessionMember(container, input.sessionId, user.id, input.memberId);
+        const { session, member } = await requireSessionMember(
+          container,
+          input.sessionId,
+          user.id,
+          input.memberId,
+        );
         if (!member.isHost) {
-          throw new ORPCError("NOT_HOST", { status: 403, message: "Only the host can perform this action" });
+          throw new ORPCError("NOT_HOST", {
+            status: 403,
+            message: "Only the host can perform this action",
+          });
         }
         return mapDomainError(() =>
-          startPoll({ repo: container.repo, queue: container.queue, timerMs: (session.pollDurationSec ?? input.timerMs / 1000) * 1000, now }, input.sessionId, user.id),
+          startPoll(
+            {
+              repo: container.repo,
+              queue: container.queue,
+              timerMs: (session.pollDurationSec ?? input.timerMs / 1000) * 1000,
+              now,
+            },
+            input.sessionId,
+            user.id,
+          ),
         );
       }),
       results: os.poll.results.handler(async ({ input, context }) => {
         const user = requireUser(context);
         await requireMember(container, input.sessionId, user.id);
-        return container.repo.withTx((tx) => container.repo.listCandidateResults(tx, input.sessionId));
+        return container.repo.withTx((tx) =>
+          container.repo.listCandidateResults(tx, input.sessionId),
+        );
       }),
       vote: os.poll.vote.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const { member } = await requireSessionMember(container, input.sessionId, user.id, input.memberId);
+        const { member } = await requireSessionMember(
+          container,
+          input.sessionId,
+          user.id,
+          input.memberId,
+        );
         const tally = await castVote({ repo: container.repo }, input, user.id, member.id);
         return { candidateId: input.candidateId, netScore: tally.net };
       }),
       close: os.poll.close.handler(async ({ input, context }) => {
         const user = requireUser(context);
-        const { member } = await requireSessionMember(container, input.sessionId, user.id, input.memberId);
+        const { member } = await requireSessionMember(
+          container,
+          input.sessionId,
+          user.id,
+          input.memberId,
+        );
         if (!member.isHost) {
-          throw new ORPCError("NOT_HOST", { status: 403, message: "Only the host can perform this action" });
+          throw new ORPCError("NOT_HOST", {
+            status: 403,
+            message: "Only the host can perform this action",
+          });
         }
         return mapDomainError(() => closePoll({ repo: container.repo }, input.sessionId, user.id));
       }),
@@ -209,7 +302,12 @@ function requireUser(context: ORPCContext): AuthUser {
   return context.user;
 }
 
-async function requireMember(container: AppContainer, sessionId: string, userId: string, memberId?: string): Promise<void> {
+async function requireMember(
+  container: AppContainer,
+  sessionId: string,
+  userId: string,
+  memberId?: string,
+): Promise<void> {
   await requireSessionMember(container, sessionId, userId, memberId);
 }
 
@@ -222,31 +320,51 @@ async function requireSessionMember(
   const result = await container.repo.withTx(async (tx) => {
     const session = await container.repo.getSession(tx, sessionId);
     const members = await container.repo.listMembers(tx, sessionId);
-    const member = memberId === undefined
-      ? members.find((candidate) => candidate.userId === userId)
-      : members.find((candidate) => candidate.id === memberId && candidate.userId === userId);
+    const member =
+      memberId === undefined
+        ? members.find((candidate) => candidate.userId === userId)
+        : members.find((candidate) => candidate.id === memberId && candidate.userId === userId);
     return { session, member };
   });
 
   if (!result.session) {
-    throw new ORPCError("NOT_FOUND", { status: 404, message: "Session not found" });
+    throw new ORPCError("NOT_FOUND", {
+      status: 404,
+      message: "Session not found",
+    });
   }
   if (result.member) {
     return { session: result.session, member: result.member };
   }
 
-  throw new ORPCError("NOT_MEMBER", { status: 403, message: "User is not a member of this session" });
+  throw new ORPCError("NOT_MEMBER", {
+    status: 403,
+    message: "User is not a member of this session",
+  });
 }
 
-async function requireRestaurant(container: AppContainer, restaurantId: string): Promise<Restaurant> {
-  const restaurant = await container.repo.withTx((tx) => container.repo.getRestaurant(tx, restaurantId));
+async function requireRestaurant(
+  container: AppContainer,
+  restaurantId: string,
+): Promise<Restaurant> {
+  const restaurant = await container.repo.withTx((tx) =>
+    container.repo.getRestaurant(tx, restaurantId),
+  );
   if (!restaurant) {
-    throw new ORPCError("NOT_FOUND", { status: 404, message: "Restaurant is not in the server-side deck cache" });
+    throw new ORPCError("NOT_FOUND", {
+      status: 404,
+      message: "Restaurant is not in the server-side deck cache",
+    });
   }
   return restaurant;
 }
 
-async function buildSessionState(container: AppContainer, sessionId: string, userId: string, memberId?: string): Promise<SessionState | null> {
+async function buildSessionState(
+  container: AppContainer,
+  sessionId: string,
+  userId: string,
+  memberId?: string,
+): Promise<SessionState | null> {
   return container.repo.withTx(async (tx) => {
     const session = await container.repo.getSession(tx, sessionId);
     if (!session) {
@@ -261,9 +379,12 @@ async function buildSessionState(container: AppContainer, sessionId: string, use
       joinCode: session.joinCode,
       status: session.status ?? "lobby",
       hostUserId: requireSessionString(session.hostUserId, "hostUserId"),
-      viewerIsHost: memberId === undefined
-        ? members.some((member) => member.userId === userId && member.isHost)
-        : members.some((member) => member.id === memberId && member.userId === userId && member.isHost),
+      viewerIsHost:
+        memberId === undefined
+          ? members.some((member) => member.userId === userId && member.isHost)
+          : members.some(
+              (member) => member.id === memberId && member.userId === userId && member.isHost,
+            ),
       lat: requireSessionNumber(session.lat, "lat"),
       lng: requireSessionNumber(session.lng, "lng"),
       radiusM: session.radiusM ?? container.config.RADIUS_BASE_M,
@@ -271,7 +392,9 @@ async function buildSessionState(container: AppContainer, sessionId: string, use
       members: members.map(memberFromRecord),
       candidates,
       ...(session.pollDeadlineAt === undefined ? {} : { pollDeadlineAt: session.pollDeadlineAt }),
-      ...(session.winnerCandidateId === undefined ? {} : { winnerCandidateId: session.winnerCandidateId }),
+      ...(session.winnerCandidateId === undefined
+        ? {}
+        : { winnerCandidateId: session.winnerCandidateId }),
     };
   });
 }
@@ -301,14 +424,20 @@ async function enqueuePlacesFetch(
 
 function requireSessionNumber(value: number | undefined, field: string): number {
   if (value === undefined) {
-    throw new ORPCError("INTERNAL_SERVER_ERROR", { status: 500, message: `Session is missing ${field}` });
+    throw new ORPCError("INTERNAL_SERVER_ERROR", {
+      status: 500,
+      message: `Session is missing ${field}`,
+    });
   }
   return value;
 }
 
 function requireSessionString(value: string | undefined, field: string): string {
   if (value === undefined) {
-    throw new ORPCError("INTERNAL_SERVER_ERROR", { status: 500, message: `Session is missing ${field}` });
+    throw new ORPCError("INTERNAL_SERVER_ERROR", {
+      status: 500,
+      message: `Session is missing ${field}`,
+    });
   }
   return value;
 }
@@ -332,13 +461,20 @@ async function mapDomainError<T>(fn: () => Promise<T>): Promise<T> {
       throw new ORPCError("NOT_HOST", { status: 403, message: error.message });
     }
     if (error instanceof NotMemberError) {
-      throw new ORPCError("NOT_MEMBER", { status: 403, message: error.message });
+      throw new ORPCError("NOT_MEMBER", {
+        status: 403,
+        message: error.message,
+      });
     }
     throw error;
   }
 }
 
-function candidateFromPromotion(candidateId: string, restaurant: Restaurant, promotedAt: string): Candidate {
+function candidateFromPromotion(
+  candidateId: string,
+  restaurant: Restaurant,
+  promotedAt: string,
+): Candidate {
   return {
     id: candidateId,
     restaurant,

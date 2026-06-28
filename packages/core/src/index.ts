@@ -14,9 +14,11 @@ export * from "./ports/streak";
 export * from "./domain/session";
 export * from "./domain/swipe";
 export * from "./domain/poll";
-export * from "./domain/auth";
 export * from "./domain/dashboard";
-export { createSession as createSessionCommand, joinSession as joinSessionCommand } from "./domain/session";
+export {
+  createSession as createSessionCommand,
+  joinSession as joinSessionCommand,
+} from "./domain/session";
 export * from "./testing/fakePlaces";
 export * from "./testing/inMemoryBus";
 export * from "./testing/inlineQueue";
@@ -180,7 +182,9 @@ export function recordSwipe(input: RecordSwipeInput): RecordSwipeResult {
 
   const rejectStreak = input.decision === "accept" ? 0 : input.rejectStreak + 1;
   const session =
-    input.decision === "accept" ? promoteIfThresholdReached(input.session, swipes, input.restaurant, input.now) : input.session;
+    input.decision === "accept"
+      ? promoteIfThresholdReached(input.session, swipes, input.restaurant, input.now)
+      : input.session;
   const result: RecordSwipeResult = {
     session,
     swipes,
@@ -194,14 +198,18 @@ export function recordSwipe(input: RecordSwipeInput): RecordSwipeResult {
   return result;
 }
 
-export function decidePollWinner(session: SessionState, input: DecidePollWinnerInput): SessionState {
+export function decidePollWinner(
+  session: SessionState,
+  input: DecidePollWinnerInput,
+): SessionState {
   if (session.status === "decided") {
     return session;
   }
   assertHost(session, input.actorUserId);
 
   const winner = [...session.candidates].sort(
-    (left, right) => right.netScore - left.netScore || left.promotedAt.localeCompare(right.promotedAt),
+    (left, right) =>
+      right.netScore - left.netScore || left.promotedAt.localeCompare(right.promotedAt),
   )[0];
 
   return {
@@ -264,7 +272,10 @@ function assertHost(session: SessionState, userId: string): void {
 }
 
 function normalizeJoinCode(joinCode: string): string {
-  return joinCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+  return joinCode
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 12);
 }
 
 function generateJoinCode(): string {

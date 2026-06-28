@@ -58,9 +58,10 @@ packages/
   adapters/  Vendor and infrastructure adapters
   db/        Drizzle schema, clients, migrations, outbox support
   config/    Typed environment parsing and defaults
+  ui/        Svelte components
+  tokens/    Shared design tokens
+  logging/   Structured logging (browser + server)
 ```
-
-The planned frontend lane also adds `packages/ui` and `packages/tokens` for Svelte components and shared design tokens.
 
 ## Getting Started
 

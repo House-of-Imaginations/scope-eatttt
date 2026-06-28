@@ -10,6 +10,9 @@ export function readSessionMember(sessionId: string): string | undefined {
   return sessionStorage.getItem(`${PREFIX}${sessionId}`) ?? undefined;
 }
 
-export function memberInput(sessionId: string, memberId: string | undefined): { sessionId: string; memberId?: string } {
+export function memberInput(
+  sessionId: string,
+  memberId: string | undefined,
+): { sessionId: string; memberId?: string } {
   return memberId === undefined ? { sessionId } : { sessionId, memberId };
 }

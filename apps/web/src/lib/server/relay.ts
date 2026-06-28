@@ -1,4 +1,4 @@
-import { AppEventSchema, type AppEvent } from "@scope/contract";
+import { type AppEvent, AppEventSchema } from "@scope/contract";
 import type { EventBus, PublishedAppEvent } from "@scope/core";
 import { listenOutbox } from "@scope/db";
 import { getAppLogger } from "@scope/logging";
@@ -27,7 +27,10 @@ export interface OutboxSqlClient {
   end(): Promise<void>;
 }
 
-export type ListenOutbox = (url: string, onEventId: (eventId: string) => void | Promise<void>) => Promise<OutboxSqlClient>;
+export type ListenOutbox = (
+  url: string,
+  onEventId: (eventId: string) => void | Promise<void>,
+) => Promise<OutboxSqlClient>;
 
 export interface StartRelayOptions {
   store: RelayStore;
@@ -36,7 +39,12 @@ export interface StartRelayOptions {
   pollMs?: number;
 }
 
-export async function startRelay({ store, bus, listener, pollMs }: StartRelayOptions): Promise<() => Promise<void>> {
+export async function startRelay({
+  store,
+  bus,
+  listener,
+  pollMs,
+}: StartRelayOptions): Promise<() => Promise<void>> {
   const dispatch = (eventId: string) => dispatchById(store, bus, eventId);
   const drain = () => drainPending(store, bus);
 
@@ -54,7 +62,10 @@ export async function startRelay({ store, bus, listener, pollMs }: StartRelayOpt
   };
 }
 
-export function createOutboxNotifyListener(url: string, listen: ListenOutbox = listenOutbox): OutboxNotifyListener {
+export function createOutboxNotifyListener(
+  url: string,
+  listen: ListenOutbox = listenOutbox,
+): OutboxNotifyListener {
   return {
     async listen(onEventId) {
       const sql = await listen(url, onEventId);

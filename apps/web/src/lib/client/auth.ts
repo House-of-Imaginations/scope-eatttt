@@ -69,7 +69,9 @@ export async function ensureAnonSession(): Promise<void> {
         }
       }
       // All retries exhausted — log once, resolve quietly so layout bootstrap never crashes.
-      getAppLogger(["auth"]).error("ensureAnonSession failed after retries", { error: lastErr });
+      getAppLogger(["auth"]).error("ensureAnonSession failed after retries", {
+        error: lastErr,
+      });
     } finally {
       // Clear the in-flight reference so subsequent calls (e.g. after a sign-out)
       // can attempt a fresh bootstrap.

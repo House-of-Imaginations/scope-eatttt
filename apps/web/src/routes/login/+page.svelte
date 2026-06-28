@@ -1,41 +1,45 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
-  import { page } from "$app/state";
-  import { PUBLIC_GOOGLE_ENABLED } from "$env/static/public";
-  import { signInEmail, signInGoogle } from "$lib/client/authClient";
-  import { parsePublicEnv } from "@scope/config";
-  import { Button } from "@scope/ui";
+import { goto } from "$app/navigation";
+import { page } from "$app/state";
+import { PUBLIC_GOOGLE_ENABLED } from "$env/static/public";
+import { signInEmail, signInGoogle } from "$lib/client/authClient";
+import { safeRedirect } from "$lib/client/safeRedirect";
+import { refreshUser } from "$lib/client/userStore.svelte";
+import { parsePublicEnv } from "@scope/config";
+import { Button } from "@scope/ui";
 
-  const googleEnabled = parsePublicEnv({ PUBLIC_GOOGLE_ENABLED }).googleEnabled;
+const googleEnabled = parsePublicEnv({ PUBLIC_GOOGLE_ENABLED }).googleEnabled;
 
-  // ponytail: query read via $app/state, same idiom as the join screen.
-  const redirect = $derived(page.url.searchParams.get("redirect") ?? "/dashboard");
-  const signupHref = $derived(`/signup?redirect=${encodeURIComponent(redirect)}`);
+// ponytail: query read via $app/state, same idiom as the join screen.
+// safeRedirect blocks open-redirect: only local "/x" paths pass.
+const redirect = $derived(safeRedirect(page.url.searchParams.get("redirect")));
+const signupHref = $derived(`/signup?redirect=${encodeURIComponent(redirect)}`);
 
-  let email = $state("");
-  let password = $state("");
-  let loading = $state(false);
-  let error = $state<string | null>(null);
+let email = $state("");
+let password = $state("");
+let loading = $state(false);
+let error = $state<string | null>(null);
 
-  const canSubmit = $derived(
-    email.trim().length > 0 && password.length > 0 && !loading,
-  );
+const canSubmit = $derived(
+	email.trim().length > 0 && password.length > 0 && !loading,
+);
 
-  async function handleSubmit(e: SubmitEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
-    error = null;
-    loading = true;
-    const r = await signInEmail({ email: email.trim(), password });
-    loading = false;
-    if (r.ok) {
-      await goto(redirect);
-      return;
-    }
-    error = r.retryAfter
-      ? `Too many attempts, try again in ${r.retryAfter}s`
-      : r.error;
-  }
+async function handleSubmit(e: SubmitEvent) {
+	e.preventDefault();
+	if (!canSubmit) return;
+	error = null;
+	loading = true;
+	const r = await signInEmail({ email: email.trim(), password });
+	loading = false;
+	if (r.ok) {
+		await refreshUser();
+		await goto(redirect);
+		return;
+	}
+	error = r.retryAfter
+		? `Too many attempts, try again in ${r.retryAfter}s`
+		: r.error;
+}
 </script>
 
 <main class="page">
@@ -71,7 +75,7 @@
       {/if}
 
       <div class="submit-row">
-        <Button type="submit" variant="primary" disabled={!canSubmit}>
+        <Button type="submit" variant="primary" fullWidth disabled={!canSubmit}>
           {loading ? "Signing in…" : "Sign in"}
         </Button>
       </div>
@@ -79,6 +83,9 @@
 
     {#if googleEnabled}
       <button class="google-btn" type="button" onclick={() => signInGoogle(redirect)}>
+        <svg class="google-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M44.5 20H24v8.5h11.8C34.7 33.9 30 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.3 0 6.3 1.2 8.6 3.3l6-6C42.8 5.1 33.6 1 24 1 11.3 1 1 11.3 1 24s10.3 23 23 23c11.5 0 22-8.3 22-23 0-1.4-.2-2.7-.5-4z" />
+        </svg>
         Sign in with Google
       </button>
     {/if}
@@ -165,12 +172,15 @@
   }
 
   .submit-row {
-    display: flex;
-    justify-content: flex-end;
+    margin-top: 8px;
   }
 
-  /* ponytail: plain comic-styled button, no OAuth icon asset */
+  /* ponytail: single-color G themed to --color-ink to match the comic mono-stroke look, not the multicolor brand mark */
   .google-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
     width: 100%;
     margin-top: 16px;
     height: 48px;
@@ -184,6 +194,11 @@
     letter-spacing: 0.5px;
     cursor: pointer;
     box-shadow: 3px 3px 0 var(--color-stroke);
+  }
+
+  .google-icon {
+    width: 20px;
+    height: 20px;
   }
 
   .alt-link {

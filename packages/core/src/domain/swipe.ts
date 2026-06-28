@@ -19,10 +19,23 @@ export interface RadiusEvaluation {
 
 export interface SwipeRepo<Tx = TransactionContext> {
   withTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
-  recordSwipe(tx: Tx, input: { sessionId: string; userId: string; memberId: string; restaurantId: string; decision: Decision; swipedAt: string }): Promise<{ created: boolean }>;
+  recordSwipe(
+    tx: Tx,
+    input: {
+      sessionId: string;
+      userId: string;
+      memberId: string;
+      restaurantId: string;
+      decision: Decision;
+      swipedAt: string;
+    },
+  ): Promise<{ created: boolean }>;
   countAccepts(tx: Tx, sessionId: string, restaurantId: string): Promise<number>;
   isCandidate(tx: Tx, sessionId: string, restaurantId: string): Promise<boolean>;
-  addCandidate(tx: Tx, input: { sessionId: string; restaurantId: string; promotedAt: string }): Promise<{ candidateId: string }>;
+  addCandidate(
+    tx: Tx,
+    input: { sessionId: string; restaurantId: string; promotedAt: string },
+  ): Promise<{ candidateId: string }>;
   updateMemberRadius(tx: Tx, sessionId: string, memberId: string, radiusM: number): Promise<void>;
   insertOutbox(tx: Tx, event: OutboxWrite): Promise<string>;
 }
@@ -51,7 +64,12 @@ export interface DecideSwipeResult {
   newRadiusM?: number;
 }
 
-export function evaluateRadius(streak: number, deckLeft: number, member: MemberRadius, cfg: RadiusConfig): RadiusEvaluation {
+export function evaluateRadius(
+  streak: number,
+  deckLeft: number,
+  member: MemberRadius,
+  cfg: RadiusConfig,
+): RadiusEvaluation {
   const shouldBroaden = streak >= cfg.rejectStreak || deckLeft <= 0;
   if (!shouldBroaden || member.radiusM >= cfg.capM) {
     return { broaden: false };
@@ -102,7 +120,10 @@ export async function decideSwipe<Tx>(
       restaurantId: input.restaurantId,
       promotedAt: swipedAt,
     });
-    await deps.repo.insertOutbox(tx, restaurantPromotedEvent(input.sessionId, candidate.candidateId, input.restaurant, swipedAt));
+    await deps.repo.insertOutbox(
+      tx,
+      restaurantPromotedEvent(input.sessionId, candidate.candidateId, input.restaurant, swipedAt),
+    );
 
     return { promoted: true, candidateId: candidate.candidateId };
   });
@@ -122,19 +143,32 @@ async function handleReject<Tx>(
     return { promoted: false };
   }
 
-  const evaluation = evaluateRadius(streak, input.deckLeft, { radiusM: input.memberRadiusM }, radius);
+  const evaluation = evaluateRadius(
+    streak,
+    input.deckLeft,
+    { radiusM: input.memberRadiusM },
+    radius,
+  );
 
   if (!evaluation.broaden || evaluation.newRadiusM === undefined) {
     return { promoted: false };
   }
 
   await deps.repo.updateMemberRadius(tx, input.sessionId, memberId, evaluation.newRadiusM);
-  await deps.repo.insertOutbox(tx, promptBroadenEvent(input.sessionId, userId, evaluation.newRadiusM));
+  await deps.repo.insertOutbox(
+    tx,
+    promptBroadenEvent(input.sessionId, userId, evaluation.newRadiusM),
+  );
 
   return { promoted: false, broaden: true, newRadiusM: evaluation.newRadiusM };
 }
 
-function restaurantPromotedEvent(sessionId: string, candidateId: string, restaurant: Restaurant, promotedAt: string): OutboxWrite {
+function restaurantPromotedEvent(
+  sessionId: string,
+  candidateId: string,
+  restaurant: Restaurant,
+  promotedAt: string,
+): OutboxWrite {
   return {
     aggregate: "session",
     aggregateId: sessionId,

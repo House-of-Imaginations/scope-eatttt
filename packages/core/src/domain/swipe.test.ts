@@ -1,8 +1,8 @@
 import type { Restaurant } from "@scope/contract";
 import { describe, expect, it } from "vitest";
-import { decideSwipe, evaluateRadius } from "./swipe";
 import type { OutboxWrite, TransactionContext } from "../ports/repo";
 import type { StreakStore } from "../ports/streak";
+import { decideSwipe, evaluateRadius } from "./swipe";
 
 const restaurant: Restaurant = {
   id: "place-1",
@@ -40,7 +40,12 @@ class FakeSwipeRepo {
     return { candidateId: "candidate-1" };
   }
 
-  async updateMemberRadius(tx: TransactionContext, _sessionId: string, _userId: string, radiusM: number) {
+  async updateMemberRadius(
+    tx: TransactionContext,
+    _sessionId: string,
+    _userId: string,
+    radiusM: number,
+  ) {
     this.writes.push(`radius:${tx.txId}:${radiusM}`);
   }
 
@@ -70,11 +75,15 @@ class FakeStreakStore implements StreakStore {
 
 describe("evaluateRadius", () => {
   it("broadens after reject streak or empty deck and caps the radius", () => {
-    expect(evaluateRadius(5, 3, { radiusM: 500 }, { rejectStreak: 5, stepM: 500, capM: 3000 })).toEqual({
+    expect(
+      evaluateRadius(5, 3, { radiusM: 500 }, { rejectStreak: 5, stepM: 500, capM: 3000 }),
+    ).toEqual({
       broaden: true,
       newRadiusM: 1000,
     });
-    expect(evaluateRadius(1, 0, { radiusM: 2800 }, { rejectStreak: 5, stepM: 500, capM: 3000 })).toEqual({
+    expect(
+      evaluateRadius(1, 0, { radiusM: 2800 }, { rejectStreak: 5, stepM: 500, capM: 3000 }),
+    ).toEqual({
       broaden: true,
       newRadiusM: 3000,
     });
@@ -88,8 +97,18 @@ describe("decideSwipe", () => {
     const streak = new FakeStreakStore();
 
     const result = await decideSwipe(
-      { repo, streak, promoteThreshold: 2, now: () => "2026-06-20T00:00:00.000Z" },
-      { sessionId: "session-1", restaurantId: restaurant.id, decision: "accept", restaurant },
+      {
+        repo,
+        streak,
+        promoteThreshold: 2,
+        now: () => "2026-06-20T00:00:00.000Z",
+      },
+      {
+        sessionId: "session-1",
+        restaurantId: restaurant.id,
+        decision: "accept",
+        restaurant,
+      },
       "user-1",
     );
 
@@ -117,11 +136,22 @@ describe("decideSwipe", () => {
         radius: { rejectStreak: 5, stepM: 500, capM: 3000 },
         now: () => "2026-06-20T00:00:00.000Z",
       },
-      { sessionId: "session-1", restaurantId: restaurant.id, decision: "reject", restaurant, memberRadiusM: 500, deckLeft: 3 },
+      {
+        sessionId: "session-1",
+        restaurantId: restaurant.id,
+        decision: "reject",
+        restaurant,
+        memberRadiusM: 500,
+        deckLeft: 3,
+      },
       "user-1",
     );
 
-    expect(result).toEqual({ promoted: false, broaden: true, newRadiusM: 1000 });
+    expect(result).toEqual({
+      promoted: false,
+      broaden: true,
+      newRadiusM: 1000,
+    });
     expect(repo.writes).toEqual(["swipe:tx-1", "radius:tx-1:1000", "outbox:tx-1"]);
     expect(repo.outbox[0]).toMatchObject({
       type: "prompt.broaden",

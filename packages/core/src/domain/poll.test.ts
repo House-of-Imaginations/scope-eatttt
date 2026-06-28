@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { castVote, closePoll, computeWinner, startPoll } from "./poll";
 import type { JobQueue } from "../ports/queue";
 import type { OutboxWrite, TransactionContext } from "../ports/repo";
+import { castVote, closePoll, computeWinner, startPoll } from "./poll";
 
 class FakePollRepo {
   outbox: OutboxWrite[] = [];
@@ -52,7 +52,11 @@ class FakePollRepo {
 }
 
 class FakeQueue implements JobQueue {
-  jobs: Array<{ name: string; data: unknown; opts?: { delayMs?: number; jobId?: string } }> = [];
+  jobs: Array<{
+    name: string;
+    data: unknown;
+    opts?: { delayMs?: number; jobId?: string };
+  }> = [];
 
   async enqueue(name: string, data: unknown, opts?: { delayMs?: number; jobId?: string }) {
     // Mirror BullMQ's real constraint so unit tests catch the colon bug that
@@ -68,8 +72,18 @@ class FakeQueue implements JobQueue {
 
 describe("computeWinner", () => {
   it("picks max net score and breaks ties by earliest promotion", () => {
-    expect(computeWinner([{ id: "a", net: 2, promotedAt: "9" }, { id: "b", net: 5, promotedAt: "2" }])).toBe("b");
-    expect(computeWinner([{ id: "a", net: 3, promotedAt: "9" }, { id: "b", net: 3, promotedAt: "2" }])).toBe("b");
+    expect(
+      computeWinner([
+        { id: "a", net: 2, promotedAt: "9" },
+        { id: "b", net: 5, promotedAt: "2" },
+      ]),
+    ).toBe("b");
+    expect(
+      computeWinner([
+        { id: "a", net: 3, promotedAt: "9" },
+        { id: "b", net: 3, promotedAt: "2" },
+      ]),
+    ).toBe("b");
   });
 });
 
@@ -86,16 +100,27 @@ describe("poll commands", () => {
 
     expect(result).toEqual({ deadlineAt: "2026-06-20T00:05:00.000Z" });
     expect(repo.writes).toEqual(["start:tx-1", "outbox:tx-1"]);
-    expect(repo.outbox[0]).toMatchObject({ type: "poll.opened", aggregateId: "session-1" });
+    expect(repo.outbox[0]).toMatchObject({
+      type: "poll.opened",
+      aggregateId: "session-1",
+    });
     expect(queue.jobs).toEqual([
-      { name: "poll.close", data: { sessionId: "session-1" }, opts: { delayMs: 300000, jobId: "poll-close-session-1" } },
+      {
+        name: "poll.close",
+        data: { sessionId: "session-1" },
+        opts: { delayMs: 300000, jobId: "poll-close-session-1" },
+      },
     ]);
   });
 
   it("casts a vote, returns tally, and emits vote.cast", async () => {
     const repo = new FakePollRepo();
 
-    const result = await castVote({ repo }, { sessionId: "session-1", candidateId: "candidate-1", value: 1 }, "user-1");
+    const result = await castVote(
+      { repo },
+      { sessionId: "session-1", candidateId: "candidate-1", value: 1 },
+      "user-1",
+    );
 
     expect(result).toEqual({ up: 2, down: 1, net: 1 });
     expect(repo.writes).toEqual(["vote:tx-1", "outbox:tx-1"]);
@@ -114,9 +139,13 @@ describe("poll commands", () => {
     const repo = new FakePollRepo();
     repo.candidateBelongsToSession = async () => false;
 
-    await expect(castVote({ repo }, { sessionId: "session-1", candidateId: "candidate-1", value: 1 }, "user-1")).rejects.toThrow(
-      "Candidate does not belong to this session",
-    );
+    await expect(
+      castVote(
+        { repo },
+        { sessionId: "session-1", candidateId: "candidate-1", value: 1 },
+        "user-1",
+      ),
+    ).rejects.toThrow("Candidate does not belong to this session");
     expect(repo.writes).toEqual([]);
   });
 
@@ -127,7 +156,10 @@ describe("poll commands", () => {
 
     expect(result).toEqual({ closed: true, winnerCandidateId: "b" });
     expect(repo.writes).toEqual(["close:tx-1", "outbox:tx-1"]);
-    expect(repo.outbox[0]).toMatchObject({ type: "poll.closed", payload: { winnerCandidateId: "b" } });
+    expect(repo.outbox[0]).toMatchObject({
+      type: "poll.closed",
+      payload: { winnerCandidateId: "b" },
+    });
   });
 
   it("does not emit poll.closed when another closer already won", async () => {
@@ -148,7 +180,9 @@ describe("poll commands", () => {
     const repo = new FakePollRepo();
     repo.isHost = async () => false;
 
-    await expect(closePoll({ repo }, "session-1", "guest-user")).rejects.toThrow("Only the session host can perform this action");
+    await expect(closePoll({ repo }, "session-1", "guest-user")).rejects.toThrow(
+      "Only the session host can perform this action",
+    );
     expect(repo.writes).toEqual([]);
   });
 });

@@ -11,9 +11,7 @@ const validEnv = {
 
 describe("parseEnv", () => {
   it("loads required URLs, providers, auth settings, and pinned defaults", () => {
-    expect(
-      parseEnv(validEnv),
-    ).toMatchObject({
+    expect(parseEnv(validEnv)).toMatchObject({
       DATABASE_URL: "postgres://app:app@localhost:6432/app",
       DATABASE_DIRECT_URL: "postgres://app:app@localhost:5432/app",
       REDIS_URL: "redis://localhost:6379",

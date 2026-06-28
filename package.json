@@ -9,10 +9,14 @@
     "dev": "turbo dev",
     "check-types": "turbo check-types",
     "test": "turbo test",
-    "lint": "turbo lint",
-    "db:migrate": "turbo db:migrate"
+    "lint": "biome lint apps/web/src/ apps/worker/src/ packages/adapters/src/ packages/config/src/ packages/contract/src/ packages/core/src/ packages/db/src/ packages/logging/src/ packages/tokens/src/ packages/ui/src/",
+    "db:migrate": "turbo db:migrate",
+    "format": "biome format --write apps/web/src/ apps/worker/src/ packages/adapters/src/ packages/config/src/ packages/contract/src/ packages/core/src/ packages/db/src/ packages/logging/src/ packages/tokens/src/ packages/ui/src/",
+    "format:check": "biome format apps/web/src/ apps/worker/src/ packages/adapters/src/ packages/config/src/ packages/contract/src/ packages/core/src/ packages/db/src/ packages/logging/src/ packages/tokens/src/ packages/ui/src/",
+    "check": "biome check apps/web/src/ apps/worker/src/ packages/adapters/src/ packages/config/src/ packages/contract/src/ packages/core/src/ packages/db/src/ packages/logging/src/ packages/tokens/src/ packages/ui/src/"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.9.4",
     "@types/node": "^26.0.0",
     "turbo": "^2.5.4",
     "typescript": "^5.8.3",

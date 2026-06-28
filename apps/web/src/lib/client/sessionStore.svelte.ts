@@ -1,6 +1,6 @@
 import type { AppEvent, Candidate, Restaurant, SessionState } from "@scope/contract";
 import { api } from "./orpc";
-import { createSse, type SseConnection } from "./sse";
+import { type SseConnection, createSse } from "./sse";
 
 /** The restaurant payload carried by a restaurant.promoted event. */
 type EventRestaurant = Extract<AppEvent, { type: "restaurant.promoted" }>["restaurant"];
@@ -100,7 +100,11 @@ export function reduce(state: SessionState, event: AppEvent): SessionState {
       return { ...state, status: "polling", pollDeadlineAt: event.deadlineAt };
 
     case "poll.closed":
-      return { ...state, status: "decided", winnerCandidateId: event.winnerCandidateId };
+      return {
+        ...state,
+        status: "decided",
+        winnerCandidateId: event.winnerCandidateId,
+      };
 
     case "deck.replenished":
       // No-op on SessionState: a replenished deck is per-user swipe inventory
@@ -172,16 +176,14 @@ export function createSessionStore(
         retryAttempt = 0;
         // On reconnect (not first open): replay events since last seen id.
         if (lastEventId !== null) {
-          void api.session
-            .eventsSince({ sessionId, afterEventId: lastEventId })
-            .then((events) => {
-              for (const ev of events) {
-                if (seenIds.has(ev.id)) continue;
-                state = applyEvent(state, ev, seenIds);
-                lastEventId = ev.id;
-                onAppEvent?.(ev);
-              }
-            });
+          void api.session.eventsSince({ sessionId, afterEventId: lastEventId }).then((events) => {
+            for (const ev of events) {
+              if (seenIds.has(ev.id)) continue;
+              state = applyEvent(state, ev, seenIds);
+              lastEventId = ev.id;
+              onAppEvent?.(ev);
+            }
+          });
         }
       },
       onError: () => {

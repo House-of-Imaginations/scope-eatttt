@@ -1,22 +1,18 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { goto } from "$app/navigation";
-  import { getCurrentUser, signOut } from "$lib/client/authClient";
-  import { Avatar } from "@scope/ui";
+import { goto } from "$app/navigation";
+import { signOut } from "$lib/client/authClient";
+import { auth, refreshUser } from "$lib/client/userStore.svelte";
+import { Avatar } from "@scope/ui";
 
-  // ponytail: simple onMount + $state, no store. Header re-mounts per layout.
-  let user = $state<Awaited<ReturnType<typeof getCurrentUser>>>(null);
+// Reads shared reactive auth state; login/signup/layout call refreshUser().
+const user = $derived(auth.user);
+const isReal = $derived(!!user && !user.isAnonymous);
 
-  onMount(async () => {
-    user = await getCurrentUser();
-  });
-
-  const isReal = $derived(!!user && !user.isAnonymous);
-
-  async function logout() {
-    await signOut();
-    await goto("/");
-  }
+async function logout() {
+	await signOut();
+	await refreshUser();
+	await goto("/");
+}
 </script>
 
 <header class="bar">

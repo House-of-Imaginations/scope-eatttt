@@ -59,7 +59,10 @@ describe("RedisBus", () => {
     await bus.subscribe("session:s1", (event) => {
       got.push(event);
     });
-    await bus.publish("session:s1", { id: "e1", type: "prompt.broaden" } as never);
+    await bus.publish("session:s1", {
+      id: "e1",
+      type: "prompt.broaden",
+    } as never);
     sub.handlers.get("session:s1")?.(pub.published[0]!.message);
 
     expect(got).toEqual([{ id: "e1", type: "prompt.broaden" }]);
@@ -71,8 +74,16 @@ describe("BullQueue", () => {
     const queue = { add: vi.fn().mockResolvedValue(undefined) };
     const jobs = new BullQueue(queue);
 
-    await jobs.enqueue("poll.close", { sessionId: "s1" }, { delayMs: 300000, jobId: "poll-close:s1" });
+    await jobs.enqueue(
+      "poll.close",
+      { sessionId: "s1" },
+      { delayMs: 300000, jobId: "poll-close:s1" },
+    );
 
-    expect(queue.add).toHaveBeenCalledWith("poll.close", { sessionId: "s1" }, { delay: 300000, jobId: "poll-close:s1" });
+    expect(queue.add).toHaveBeenCalledWith(
+      "poll.close",
+      { sessionId: "s1" },
+      { delay: 300000, jobId: "poll-close:s1" },
+    );
   });
 });

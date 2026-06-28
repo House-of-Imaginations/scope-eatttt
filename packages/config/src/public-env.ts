@@ -25,7 +25,10 @@ export function parsePublicEnv(src: Record<string, unknown>): PublicEnv {
         throw new Error("invalid public env");
       },
     });
-    return { useMock: env.PUBLIC_USE_MOCK, googleEnabled: env.PUBLIC_GOOGLE_ENABLED };
+    return {
+      useMock: env.PUBLIC_USE_MOCK,
+      googleEnabled: env.PUBLIC_GOOGLE_ENABLED,
+    };
   } catch {
     return { useMock: false, googleEnabled: false };
   }

@@ -1,16 +1,20 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
-  import CreatePollForm from "$lib/components/CreatePollForm.svelte";
+import { goto } from "$app/navigation";
+import CreatePollForm from "$lib/components/CreatePollForm.svelte";
 
-  let joinCode = $state<string | null>(null);
+let joinCode = $state<string | null>(null);
 
-  async function handleCreated(result: { sessionId: string; joinCode: string; memberId: string }) {
-    joinCode = result.joinCode;
-    // Show join code for 1.5 s so host can read it, then navigate.
-    // ponytail: simple timeout — no need for a modal/drawer.
-    await new Promise((r) => setTimeout(r, 1500));
-    await goto(`/s/${result.sessionId}`);
-  }
+async function handleCreated(result: {
+	sessionId: string;
+	joinCode: string;
+	memberId: string;
+}) {
+	joinCode = result.joinCode;
+	// Show join code for 1.5 s so host can read it, then navigate.
+	// ponytail: simple timeout — no need for a modal/drawer.
+	await new Promise((r) => setTimeout(r, 1500));
+	await goto(`/s/${result.sessionId}`);
+}
 </script>
 
 <main class="page">

@@ -1,8 +1,8 @@
 import { building } from "$app/environment";
-import { getContainer } from "./container";
-import { createRelayRuntime } from "./relayRuntimeCore";
-import { startRelay } from "./relay";
 import { getAppLogger } from "@scope/logging";
+import { getContainer } from "./container";
+import { startRelay } from "./relay";
+import { createRelayRuntime } from "./relayRuntimeCore";
 
 const relayRuntime = createRelayRuntime({
   building,

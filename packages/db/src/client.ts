@@ -10,7 +10,9 @@ export interface DatabaseUrlEnv {
 export function createDatabaseClients(env: DatabaseUrlEnv) {
   const pooledOptions = { url: env.DATABASE_URL, prepare: false };
   const directOptions = { url: env.DATABASE_DIRECT_URL };
-  const pooledSql = postgres(pooledOptions.url, { prepare: pooledOptions.prepare });
+  const pooledSql = postgres(pooledOptions.url, {
+    prepare: pooledOptions.prepare,
+  });
   const directSql = postgres(directOptions.url);
 
   return {

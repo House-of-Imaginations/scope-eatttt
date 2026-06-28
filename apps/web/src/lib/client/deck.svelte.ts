@@ -67,7 +67,9 @@ export function createDeck(sessionId: string, memberId?: string): Deck {
     },
 
     async load() {
-      const fetched = await api.swipe.deck(memberId === undefined ? { sessionId } : { sessionId, memberId });
+      const fetched = await api.swipe.deck(
+        memberId === undefined ? { sessionId } : { sessionId, memberId },
+      );
       const loaded = fetched.map(toRestaurant);
       // Merge, don't clobber. A concurrent deck.replenished event (the worker
       // finishing places.fetch) may have appended cards while this fetch was in

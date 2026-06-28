@@ -1,29 +1,39 @@
 import { building } from "$app/environment";
-import type { Handle } from "@sveltejs/kit";
-import { svelteKitHandler } from "better-auth/svelte-kit";
-import { configureBackendLogging } from "@scope/logging";
 import { getAuth } from "$lib/server/auth";
-import { ensureRelayStarted } from "$lib/server/relayRuntime";
 import { getContainer } from "$lib/server/container";
 import { checkRateLimit } from "$lib/server/rateLimit";
-import { RedisCache } from "@scope/adapters";
+import { ensureRelayStarted } from "$lib/server/relayRuntime";
+import type { RedisCache } from "@scope/adapters";
 import { loadEnv } from "@scope/config";
+import { configureBackendLogging } from "@scope/logging";
+import type { Handle } from "@sveltejs/kit";
+import { svelteKitHandler } from "better-auth/svelte-kit";
 
 configureBackendLogging({ service: "web" });
 
 export const handle: Handle = async ({ event, resolve }) => {
+  if (isMockMode()) {
+    event.locals.session = null;
+    event.locals.user = null;
+    if (event.url.pathname === "/api/auth/get-session") {
+      return Response.json({ user: null, session: null });
+    }
+    return resolve(event);
+  }
+
   ensureRelayStarted();
 
   const env = loadEnv();
-  if (env.RATE_LIMIT_ENABLED) {
+  // ponytail: same prod fallback as Better Auth Layer 1 (auth.ts) — backstop
+  // self-activates in prod even when RATE_LIMIT_ENABLED is left unset.
+  const rateLimitOn = env.RATE_LIMIT_ENABLED ?? process.env.NODE_ENV === "production";
+  if (rateLimitOn) {
     const path = event.url.pathname;
     // ponytail: skip SSE path — long-lived stream, rate-limiting kills live updates.
     if (!/^\/api\/sessions\/[^/]+\/events/.test(path)) {
       const header = env.TRUSTED_IP_HEADER;
       // ponytail: read single trusted header value, no comma-split — don't trust raw x-forwarded-for chains.
-      const ip =
-        (header ? event.request.headers.get(header) : null) ??
-        event.getClientAddress();
+      const ip = (header ? event.request.headers.get(header) : null) ?? event.getClientAddress();
       const redis = (getContainer().cache as RedisCache).rateLimitClient;
       const { ok, retryAfter } = await checkRateLimit(redis, ip, 300, 60);
       if (!ok) {
@@ -45,3 +55,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   return svelteKitHandler({ event, resolve, auth, building });
 };
+
+function isMockMode(): boolean {
+  return (
+    process.env.NODE_ENV !== "production" &&
+    (process.env.PUBLIC_USE_MOCK === "1" || process.env.PUBLIC_USE_MOCK === "true")
+  );
+}

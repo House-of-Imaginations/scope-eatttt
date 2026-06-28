@@ -1,5 +1,5 @@
 import type { EventBus, PublishedAppEvent } from "@scope/core";
-import { outboxRowToEvent, type RelayOutboxRow } from "./relay";
+import { type RelayOutboxRow, outboxRowToEvent } from "./relay";
 
 export interface SessionEventReplayStore {
   listSessionEventsAfter(sessionId: string, afterEventId?: string): Promise<RelayOutboxRow[]>;
@@ -27,8 +27,10 @@ export async function createSessionEventStream({
   const encoder = new TextEncoder();
   let controller: ReadableStreamDefaultController<Uint8Array>;
   let closed = false;
+  // biome-ignore lint/style/useConst: reassigned after async subscribe
   let unsubscribe: (() => void | Promise<void>) | undefined;
-  const heartbeat = heartbeatMs > 0 ? setInterval(() => writeText(": heartbeat\n\n"), heartbeatMs) : undefined;
+  const heartbeat =
+    heartbeatMs > 0 ? setInterval(() => writeText(": heartbeat\n\n"), heartbeatMs) : undefined;
   heartbeat?.unref?.();
 
   const stream = new ReadableStream<Uint8Array>({

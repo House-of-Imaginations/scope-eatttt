@@ -1,16 +1,19 @@
-import type {
-  Restaurant,
-  Candidate,
-  SessionState,
-  Member,
-  AppEvent,
-} from "@scope/contract";
+import type { AppEvent, Candidate, Member, Restaurant, SessionState } from "@scope/contract";
 // Input types: use the schema .parse() parameter type so defaulted fields are optional
 // (matching real oRPC behaviour where callers omit fields that have Zod defaults)
-type CreateIn = { lat: number; lng: number; cuisines?: string[]; radiusM?: number };
+type CreateIn = {
+  lat: number;
+  lng: number;
+  cuisines?: string[];
+  radiusM?: number;
+};
 type JoinIn = { joinCode: string; displayName: string };
 type SessionIdIn = { sessionId: string; memberId?: string };
-type SwipeIn = SessionIdIn & { restaurantId: string; decision: "accept" | "reject"; deckLeft?: number };
+type SwipeIn = SessionIdIn & {
+  restaurantId: string;
+  decision: "accept" | "reject";
+  deckLeft?: number;
+};
 type DeckIn = SessionIdIn & { limit?: number };
 type BroadenIn = SessionIdIn & { userId: string; stepM?: number };
 type StartPollIn = SessionIdIn & { timerMs?: number };
@@ -20,16 +23,116 @@ type ClosePollIn = SessionIdIn;
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const FIXTURE_RESTAURANTS: Restaurant[] = [
-  { id: "r1", name: "Sakura Ramen", address: "1 Main St", cuisineTags: ["japanese", "ramen"], lat: 1, lng: 2, rating: 4.5, priceLevel: 2, distanceM: 300 },
-  { id: "r2", name: "Taco Loco", address: "2 Main St", cuisineTags: ["mexican", "tacos"], lat: 1.001, lng: 2.001, rating: 4.2, priceLevel: 1, distanceM: 400 },
-  { id: "r3", name: "Pizza Roma", address: "3 Main St", cuisineTags: ["italian", "pizza"], lat: 1.002, lng: 2.002, rating: 4.0, priceLevel: 2, distanceM: 450 },
-  { id: "r4", name: "Burger Joint", address: "4 Main St", cuisineTags: ["american", "burgers"], lat: 1.003, lng: 2.003, rating: 3.9, priceLevel: 1, distanceM: 500 },
-  { id: "r5", name: "Thai Palace", address: "5 Main St", cuisineTags: ["thai"], lat: 1.004, lng: 2.004, rating: 4.3, priceLevel: 2, distanceM: 350 },
-  { id: "r6", name: "Dim Sum House", address: "6 Main St", cuisineTags: ["chinese", "dim-sum"], lat: 1.005, lng: 2.005, rating: 4.6, priceLevel: 2, distanceM: 420 },
-  { id: "r7", name: "Le Bistro", address: "7 Main St", cuisineTags: ["french"], lat: 1.006, lng: 2.006, rating: 4.4, priceLevel: 3, distanceM: 480 },
-  { id: "r8", name: "Kebab King", address: "8 Main St", cuisineTags: ["turkish", "kebab"], lat: 1.007, lng: 2.007, rating: 4.1, priceLevel: 1, distanceM: 390 },
-  { id: "r9", name: "Sushi Zen", address: "9 Main St", cuisineTags: ["japanese", "sushi"], lat: 1.008, lng: 2.008, rating: 4.7, priceLevel: 3, distanceM: 460 },
-  { id: "r10", name: "Veggie Garden", address: "10 Main St", cuisineTags: ["vegetarian", "vegan"], lat: 1.009, lng: 2.009, rating: 4.0, priceLevel: 2, distanceM: 370 },
+  {
+    id: "r1",
+    name: "Sakura Ramen",
+    address: "1 Main St",
+    cuisineTags: ["japanese", "ramen"],
+    lat: 1,
+    lng: 2,
+    rating: 4.5,
+    priceLevel: 2,
+    distanceM: 300,
+  },
+  {
+    id: "r2",
+    name: "Taco Loco",
+    address: "2 Main St",
+    cuisineTags: ["mexican", "tacos"],
+    lat: 1.001,
+    lng: 2.001,
+    rating: 4.2,
+    priceLevel: 1,
+    distanceM: 400,
+  },
+  {
+    id: "r3",
+    name: "Pizza Roma",
+    address: "3 Main St",
+    cuisineTags: ["italian", "pizza"],
+    lat: 1.002,
+    lng: 2.002,
+    rating: 4.0,
+    priceLevel: 2,
+    distanceM: 450,
+  },
+  {
+    id: "r4",
+    name: "Burger Joint",
+    address: "4 Main St",
+    cuisineTags: ["american", "burgers"],
+    lat: 1.003,
+    lng: 2.003,
+    rating: 3.9,
+    priceLevel: 1,
+    distanceM: 500,
+  },
+  {
+    id: "r5",
+    name: "Thai Palace",
+    address: "5 Main St",
+    cuisineTags: ["thai"],
+    lat: 1.004,
+    lng: 2.004,
+    rating: 4.3,
+    priceLevel: 2,
+    distanceM: 350,
+  },
+  {
+    id: "r6",
+    name: "Dim Sum House",
+    address: "6 Main St",
+    cuisineTags: ["chinese", "dim-sum"],
+    lat: 1.005,
+    lng: 2.005,
+    rating: 4.6,
+    priceLevel: 2,
+    distanceM: 420,
+  },
+  {
+    id: "r7",
+    name: "Le Bistro",
+    address: "7 Main St",
+    cuisineTags: ["french"],
+    lat: 1.006,
+    lng: 2.006,
+    rating: 4.4,
+    priceLevel: 3,
+    distanceM: 480,
+  },
+  {
+    id: "r8",
+    name: "Kebab King",
+    address: "8 Main St",
+    cuisineTags: ["turkish", "kebab"],
+    lat: 1.007,
+    lng: 2.007,
+    rating: 4.1,
+    priceLevel: 1,
+    distanceM: 390,
+  },
+  {
+    id: "r9",
+    name: "Sushi Zen",
+    address: "9 Main St",
+    cuisineTags: ["japanese", "sushi"],
+    lat: 1.008,
+    lng: 2.008,
+    rating: 4.7,
+    priceLevel: 3,
+    distanceM: 460,
+  },
+  {
+    id: "r10",
+    name: "Veggie Garden",
+    address: "10 Main St",
+    cuisineTags: ["vegetarian", "vegan"],
+    lat: 1.009,
+    lng: 2.009,
+    rating: 4.0,
+    priceLevel: 2,
+    distanceM: 370,
+  },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -174,7 +277,10 @@ function shouldRotateUsers(): boolean {
 
 function publishMockEvent(event: AppEvent): void {
   if (!hasBrowserStorage()) return;
-  const packet = JSON.stringify({ id: `${Date.now()}:${Math.random()}`, event });
+  const packet = JSON.stringify({
+    id: `${Date.now()}:${Math.random()}`,
+    event,
+  });
   window.localStorage.setItem(MOCK_EVENT_KEY, packet);
   if (typeof BroadcastChannel !== "undefined") {
     const channel = new BroadcastChannel(MOCK_EVENT_CHANNEL);
@@ -183,7 +289,10 @@ function publishMockEvent(event: AppEvent): void {
   }
 }
 
-export function subscribeMockEvents(sessionId: string, onEvent: (event: AppEvent) => void): () => void {
+export function subscribeMockEvents(
+  sessionId: string,
+  onEvent: (event: AppEvent) => void,
+): () => void {
   if (typeof window === "undefined") return () => {};
 
   const receive = (event: AppEvent) => {
@@ -319,7 +428,15 @@ export function makeMockApi(): MockApi {
             lng: 0,
             radiusM: 500,
             cuisines: [],
-            members: [{ id: nextId(state), userId: hostUserId, displayName: "Host", isHost: true, joinedAt: nowIso() }],
+            members: [
+              {
+                id: nextId(state),
+                userId: hostUserId,
+                displayName: "Host",
+                isHost: true,
+                joinedAt: nowIso(),
+              },
+            ],
             candidates: [],
             pollDeadlineAt: undefined,
             winnerCandidateId: undefined,
@@ -393,7 +510,9 @@ export function makeMockApi(): MockApi {
           members: row.members,
           candidates: row.candidates,
           ...(row.pollDeadlineAt !== undefined ? { pollDeadlineAt: row.pollDeadlineAt } : {}),
-          ...(row.winnerCandidateId !== undefined ? { winnerCandidateId: row.winnerCandidateId } : {}),
+          ...(row.winnerCandidateId !== undefined
+            ? { winnerCandidateId: row.winnerCandidateId }
+            : {}),
         };
         return sessionState;
       },
@@ -414,7 +533,9 @@ export function makeMockApi(): MockApi {
         const row = state.sessions.get(input.sessionId);
         if (!row) throw new Error(`Session ${input.sessionId} not found`);
         const memberId = getCurrentMemberId(state, input, row);
-        const userId = row.members.find((member) => member.id === memberId)?.userId ?? getCurrentUserId(state, input.sessionId, row);
+        const userId =
+          row.members.find((member) => member.id === memberId)?.userId ??
+          getCurrentUserId(state, input.sessionId, row);
 
         if (input.decision === "reject") {
           return { promoted: false };
@@ -436,9 +557,7 @@ export function makeMockApi(): MockApi {
 
         if (acceptSet.size >= PROMOTE_THRESHOLD) {
           // Already promoted?
-          const existing = row.candidates.find(
-            (c) => c.restaurant.id === input.restaurantId
-          );
+          const existing = row.candidates.find((c) => c.restaurant.id === input.restaurantId);
           if (existing) {
             return { promoted: false, candidate: existing };
           }
@@ -530,7 +649,9 @@ export function makeMockApi(): MockApi {
         if (!cand) throw new Error(`Candidate ${input.candidateId} not found`);
 
         const memberId = getCurrentMemberId(state, input, row);
-        const userId = row.members.find((member) => member.id === memberId)?.userId ?? getCurrentUserId(state, input.sessionId, row);
+        const userId =
+          row.members.find((member) => member.id === memberId)?.userId ??
+          getCurrentUserId(state, input.sessionId, row);
         if (!state.votes.has(input.candidateId)) {
           state.votes.set(input.candidateId, new Map());
         }
@@ -571,9 +692,7 @@ export function makeMockApi(): MockApi {
         if (row.candidates.length === 0) {
           throw new Error("No candidates to close poll with");
         }
-        const winner = row.candidates.reduce((best, c) =>
-          c.netScore > best.netScore ? c : best
-        );
+        const winner = row.candidates.reduce((best, c) => (c.netScore > best.netScore ? c : best));
         row.winnerCandidateId = winner.id;
         row.status = "decided";
         const event: AppEvent = {

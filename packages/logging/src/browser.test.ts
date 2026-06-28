@@ -22,9 +22,8 @@ describe("@scope/logging/browser", () => {
     configureFrontendLogging({ enabled: true });
     getAppLogger(["layout"]).error("Client failed", { reason: "test" });
 
-    expect(error).toHaveBeenCalledWith(
-      "[scope-eatttt:frontend:layout] Client failed",
-      { reason: "test" },
-    );
+    expect(error).toHaveBeenCalledWith("[scope-eatttt:frontend:layout] Client failed", {
+      reason: "test",
+    });
   });
 });

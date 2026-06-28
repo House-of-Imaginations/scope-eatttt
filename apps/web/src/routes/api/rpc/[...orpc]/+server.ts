@@ -1,7 +1,7 @@
-import type { RequestHandler } from "@sveltejs/kit";
+import { type ORPCContext, createORPCRouter } from "$lib/server/orpc";
 import { RPCHandler } from "@orpc/server/fetch";
 import type { AuthUser } from "@scope/core";
-import { createORPCRouter, type ORPCContext } from "$lib/server/orpc";
+import type { RequestHandler } from "@sveltejs/kit";
 
 let handler: RPCHandler<ORPCContext> | undefined;
 

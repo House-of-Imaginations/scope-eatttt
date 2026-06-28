@@ -1,4 +1,9 @@
-import { closePoll, type PollRepo, type SessionSummary, type TransactionContext } from "@scope/core";
+import {
+  type PollRepo,
+  type SessionSummary,
+  type TransactionContext,
+  closePoll,
+} from "@scope/core";
 
 export interface PollCloseJobData {
   sessionId: string;

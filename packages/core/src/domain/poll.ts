@@ -1,7 +1,7 @@
 import type { VoteInput } from "@scope/contract";
+import { NotHostError } from "../index";
 import type { JobQueue } from "../ports/queue";
 import type { OutboxWrite, TransactionContext } from "../ports/repo";
-import { NotHostError } from "../index";
 
 export interface CandidateTally {
   id: string;
@@ -19,7 +19,16 @@ export interface PollRepo<Tx = TransactionContext> {
   withTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
   isHost(tx: Tx, sessionId: string, userId: string): Promise<boolean>;
   startPoll(tx: Tx, sessionId: string, deadlineAt: string): Promise<void>;
-  upsertVote(tx: Tx, input: { sessionId: string; candidateId: string; userId: string; memberId: string; value: 1 | -1 }): Promise<void>;
+  upsertVote(
+    tx: Tx,
+    input: {
+      sessionId: string;
+      candidateId: string;
+      userId: string;
+      memberId: string;
+      value: 1 | -1;
+    },
+  ): Promise<void>;
   candidateBelongsToSession(tx: Tx, sessionId: string, candidateId: string): Promise<boolean>;
   tally(tx: Tx, candidateId: string): Promise<Tally>;
   listCandidatesWithTally(tx: Tx, sessionId: string): Promise<CandidateTally[]>;
@@ -62,7 +71,11 @@ export async function startPoll<Tx>(
   // BullMQ rejects custom job IDs containing ':' (Job.validateOptions throws
   // "Custom Id cannot contain :"). Use a hyphen — same constraint that bit
   // places-fetch. Without this, the poll commits but enqueue throws → client 500.
-  await deps.queue.enqueue("poll.close", { sessionId }, { delayMs: deps.timerMs, jobId: `poll-close-${sessionId}` });
+  await deps.queue.enqueue(
+    "poll.close",
+    { sessionId },
+    { delayMs: deps.timerMs, jobId: `poll-close-${sessionId}` },
+  );
 
   return { deadlineAt };
 }
@@ -79,7 +92,10 @@ export async function castVote<Tx>(
     }
     await deps.repo.upsertVote(tx, { ...input, userId, memberId });
     const tally = await deps.repo.tally(tx, input.candidateId);
-    await deps.repo.insertOutbox(tx, voteCastEvent(input.sessionId, input.candidateId, userId, input.value, tally));
+    await deps.repo.insertOutbox(
+      tx,
+      voteCastEvent(input.sessionId, input.candidateId, userId, input.value, tally),
+    );
     return tally;
   });
 }
@@ -103,7 +119,12 @@ export async function closePoll<Tx>(
   });
 }
 
-async function assertHost<Tx>(repo: PollRepo<Tx>, tx: Tx, sessionId: string, userId: string): Promise<void> {
+async function assertHost<Tx>(
+  repo: PollRepo<Tx>,
+  tx: Tx,
+  sessionId: string,
+  userId: string,
+): Promise<void> {
   if (!(await repo.isHost(tx, sessionId, userId))) {
     throw new NotHostError();
   }
@@ -118,7 +139,11 @@ function compareCandidateTallies(left: CandidateTally, right: CandidateTally): n
   return left.promotedAt.localeCompare(right.promotedAt);
 }
 
-function sessionOutboxEvent(type: OutboxWrite["type"], aggregateId: string, payload: unknown): OutboxWrite {
+function sessionOutboxEvent(
+  type: OutboxWrite["type"],
+  aggregateId: string,
+  payload: unknown,
+): OutboxWrite {
   return {
     aggregate: "session",
     aggregateId,
@@ -131,7 +156,13 @@ function pollOpenedEvent(sessionId: string, deadlineAt: string): OutboxWrite {
   return sessionOutboxEvent("poll.opened", sessionId, { deadlineAt });
 }
 
-function voteCastEvent(sessionId: string, candidateId: string, userId: string, value: 1 | -1, tally: Tally): OutboxWrite {
+function voteCastEvent(
+  sessionId: string,
+  candidateId: string,
+  userId: string,
+  value: 1 | -1,
+  tally: Tally,
+): OutboxWrite {
   return sessionOutboxEvent("vote.cast", sessionId, {
     candidateId,
     userId,

@@ -1,7 +1,24 @@
-import { boolean, index, integer, pgEnum, pgTable, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { user } from "./auth";
 
-export const sessionStatus = pgEnum("session_status", ["lobby", "swiping", "polling", "decided", "closed"]);
+export const sessionStatus = pgEnum("session_status", [
+  "lobby",
+  "swiping",
+  "polling",
+  "decided",
+  "closed",
+]);
 export const swipeDecision = pgEnum("swipe_decision", ["accept", "reject"]);
 
 export const lunchSession = pgTable(
@@ -10,7 +27,9 @@ export const lunchSession = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     joinCode: text("join_code").notNull().unique(),
     title: text("title"),
-    hostUserId: text("host_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    hostUserId: text("host_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     status: sessionStatus("status").notNull().default("lobby"),
     lat: real("lat").notNull(),
     lng: real("lng").notNull(),
@@ -33,8 +52,12 @@ export const sessionMember = pgTable(
   "session_member",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    sessionId: uuid("session_id").notNull().references(() => lunchSession.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => lunchSession.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     displayName: text("display_name").notNull(),
     isHost: boolean("is_host").notNull().default(false),
     radiusM: integer("radius_m").notNull().default(500),
@@ -50,15 +73,25 @@ export const swipe = pgTable(
   "swipe",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    sessionId: uuid("session_id").notNull().references(() => lunchSession.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-    memberId: uuid("member_id").notNull().references(() => sessionMember.id, { onDelete: "cascade" }),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => lunchSession.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => sessionMember.id, { onDelete: "cascade" }),
     restaurantId: text("restaurant_id").notNull(),
     decision: swipeDecision("decision").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    swipeUnique: uniqueIndex("swipe_session_member_restaurant_idx").on(table.sessionId, table.memberId, table.restaurantId),
+    swipeUnique: uniqueIndex("swipe_session_member_restaurant_idx").on(
+      table.sessionId,
+      table.memberId,
+      table.restaurantId,
+    ),
     restaurantIdx: index("swipe_session_restaurant_idx").on(table.sessionId, table.restaurantId),
   }),
 );
@@ -86,12 +119,19 @@ export const pollCandidate = pgTable(
   "poll_candidate",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    sessionId: uuid("session_id").notNull().references(() => lunchSession.id, { onDelete: "cascade" }),
-    restaurantId: text("restaurant_id").notNull().references(() => restaurantCache.id, { onDelete: "restrict" }),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => lunchSession.id, { onDelete: "cascade" }),
+    restaurantId: text("restaurant_id")
+      .notNull()
+      .references(() => restaurantCache.id, { onDelete: "restrict" }),
     promotedAt: timestamp("promoted_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    candidateUnique: uniqueIndex("poll_candidate_session_restaurant_idx").on(table.sessionId, table.restaurantId),
+    candidateUnique: uniqueIndex("poll_candidate_session_restaurant_idx").on(
+      table.sessionId,
+      table.restaurantId,
+    ),
   }),
 );
 
@@ -99,15 +139,27 @@ export const vote = pgTable(
   "vote",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    sessionId: uuid("session_id").notNull().references(() => lunchSession.id, { onDelete: "cascade" }),
-    candidateId: uuid("candidate_id").notNull().references(() => pollCandidate.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-    memberId: uuid("member_id").notNull().references(() => sessionMember.id, { onDelete: "cascade" }),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => lunchSession.id, { onDelete: "cascade" }),
+    candidateId: uuid("candidate_id")
+      .notNull()
+      .references(() => pollCandidate.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => sessionMember.id, { onDelete: "cascade" }),
     value: integer("value").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    voteUnique: uniqueIndex("vote_session_candidate_member_idx").on(table.sessionId, table.candidateId, table.memberId),
+    voteUnique: uniqueIndex("vote_session_candidate_member_idx").on(
+      table.sessionId,
+      table.candidateId,
+      table.memberId,
+    ),
     sessionCandidateIdx: index("vote_session_candidate_idx").on(table.sessionId, table.candidateId),
   }),
 );

@@ -5,16 +5,22 @@ const provider = <T extends readonly [string, ...string[]]>(values: T, fallback:
   z.enum(values).default(fallback);
 
 const positiveInt = (fallback: number) => z.coerce.number().int().positive().default(fallback);
-const optionalBool = z.string().optional().transform((value) => {
-  if (value === undefined) {
-    return undefined;
-  }
-  return value === "1" || value === "true";
-});
-const authSecret = z.string().min(32).refine(
-  (value) => !["replace-me-with-openssl-rand-base64-48", "dev-secret-change-me"].includes(value),
-  "BETTER_AUTH_SECRET must be a generated secret",
-);
+const optionalBool = z
+  .string()
+  .optional()
+  .transform((value) => {
+    if (value === undefined) {
+      return undefined;
+    }
+    return value === "1" || value === "true";
+  });
+const authSecret = z
+  .string()
+  .min(32)
+  .refine(
+    (value) => !["replace-me-with-openssl-rand-base64-48", "dev-secret-change-me"].includes(value),
+    "BETTER_AUTH_SECRET must be a generated secret",
+  );
 
 const server = {
   DATABASE_URL: z.url(),
@@ -66,7 +72,9 @@ export function parseEnv(src: Record<string, string | undefined>): Env {
     runtimeEnv: src,
     emptyStringAsUndefined: true,
     onValidationError: (issues) => {
-      throw new Error(`Invalid environment variables: ${issues.map((issue) => issue.path?.join(".") ?? issue.message).join(", ")}`);
+      throw new Error(
+        `Invalid environment variables: ${issues.map((issue) => issue.path?.join(".") ?? issue.message).join(", ")}`,
+      );
     },
   });
 }

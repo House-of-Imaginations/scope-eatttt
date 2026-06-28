@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { initials, colorFor } from "./avatar.js";
+import { colorFor, initials } from "./avatar.js";
 
-  let {
-    name,
-    image,
-    size = 32,
-  }: {
-    name: string;
-    // ponytail: allow `undefined` so callers can forward an optional image
-    // under exactOptionalPropertyTypes without juggling spreads.
-    image?: string | undefined;
-    size?: number;
-  } = $props();
+const {
+	name,
+	image,
+	size = 32,
+}: {
+	name: string;
+	// ponytail: allow `undefined` so callers can forward an optional image
+	// under exactOptionalPropertyTypes without juggling spreads.
+	image?: string | undefined;
+	size?: number;
+} = $props();
 </script>
 
 <span style="display:inline-flex;">

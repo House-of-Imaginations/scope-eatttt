@@ -1,14 +1,14 @@
 <script lang="ts">
-  import { Avatar } from "@scope/ui";
-  import type { PageData } from "./$types";
+import { Avatar } from "@scope/ui";
+import type { PageData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+const { data }: { data: PageData } = $props();
 
-  const summary = $derived(data.summary);
-  // Highest net score first — read-only leaderboard view.
-  const candidates = $derived(
-    [...(summary?.candidates ?? [])].sort((a, b) => b.netScore - a.netScore),
-  );
+const summary = $derived(data.summary);
+// Highest net score first — read-only leaderboard view.
+const candidates = $derived(
+	[...(summary?.candidates ?? [])].sort((a, b) => b.netScore - a.netScore),
+);
 </script>
 
 <main class="page">

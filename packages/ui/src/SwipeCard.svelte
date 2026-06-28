@@ -1,68 +1,68 @@
 <script lang="ts">
-  import type { Restaurant } from "@scope/contract";
-  import Button from "./Button.svelte";
+import type { Restaurant } from "@scope/contract";
+import Button from "./Button.svelte";
 
-  let {
-    restaurant,
-    onswipe,
-  }: {
-    restaurant: Restaurant;
-    onswipe?: (decision: "accept" | "reject") => void;
-  } = $props();
+const {
+	restaurant,
+	onswipe,
+}: {
+	restaurant: Restaurant;
+	onswipe?: (decision: "accept" | "reject") => void;
+} = $props();
 
-  // Past this many px of horizontal travel, releasing the drag commits a swipe;
-  // anything shorter springs the card back to centre.
-  const COMMIT_THRESHOLD = 96;
+// Past this many px of horizontal travel, releasing the drag commits a swipe;
+// anything shorter springs the card back to centre.
+const COMMIT_THRESHOLD = 96;
 
-  // Live drag offset (px). 0 = resting/centred. Drives the CSS transform.
-  let dragX = $state(0);
-  let dragging = $state(false);
-  let pointerId: number | null = null;
-  let startX = 0;
+// Live drag offset (px). 0 = resting/centred. Drives the CSS transform.
+let dragX = $state(0);
+let dragging = $state(false);
+let pointerId: number | null = null;
+let startX = 0;
 
-  function commit(decision: "accept" | "reject") {
-    onswipe?.(decision);
-  }
+function commit(decision: "accept" | "reject") {
+	onswipe?.(decision);
+}
 
-  function onPointerDown(e: PointerEvent) {
-    // Let the action buttons receive their own clicks: a pointerdown that starts
-    // on a button must not become a card drag (capturing it would steal the
-    // button's click).
-    if ((e.target as HTMLElement).closest("button")) return;
-    pointerId = e.pointerId;
-    startX = e.clientX;
-    dragging = true;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }
+function onPointerDown(e: PointerEvent) {
+	// Let the action buttons receive their own clicks: a pointerdown that starts
+	// on a button must not become a card drag (capturing it would steal the
+	// button's click).
+	if ((e.target as HTMLElement).closest("button")) return;
+	pointerId = e.pointerId;
+	startX = e.clientX;
+	dragging = true;
+	(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+}
 
-  function onPointerMove(e: PointerEvent) {
-    if (!dragging || e.pointerId !== pointerId) return;
-    dragX = e.clientX - startX;
-  }
+function onPointerMove(e: PointerEvent) {
+	if (!dragging || e.pointerId !== pointerId) return;
+	dragX = e.clientX - startX;
+}
 
-  function onPointerUp(e: PointerEvent) {
-    if (!dragging || e.pointerId !== pointerId) return;
-    dragging = false;
-    pointerId = null;
-    if (dragX >= COMMIT_THRESHOLD) commit("accept");
-    else if (dragX <= -COMMIT_THRESHOLD) commit("reject");
-    dragX = 0; // spring back (CSS transition handles the ease when not dragging)
-  }
+function onPointerUp(e: PointerEvent) {
+	if (!dragging || e.pointerId !== pointerId) return;
+	dragging = false;
+	pointerId = null;
+	if (dragX >= COMMIT_THRESHOLD) commit("accept");
+	else if (dragX <= -COMMIT_THRESHOLD) commit("reject");
+	dragX = 0; // spring back (CSS transition handles the ease when not dragging)
+}
 
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === "ArrowRight") {
-      e.preventDefault();
-      commit("accept");
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      commit("reject");
-    }
-  }
+function onKeydown(e: KeyboardEvent) {
+	if (e.key === "ArrowRight") {
+		e.preventDefault();
+		commit("accept");
+	} else if (e.key === "ArrowLeft") {
+		e.preventDefault();
+		commit("reject");
+	}
+}
 
-  // Price level → dollar signs (1..4); omitted when absent.
-  const price = $derived(
-    restaurant.priceLevel ? "$".repeat(restaurant.priceLevel) : "",
-  );
+// Price level → dollar signs (1..4); omitted when absent.
+const price = $derived(
+	restaurant.priceLevel ? "$".repeat(restaurant.priceLevel) : "",
+);
 </script>
 
 <!-- The accept/reject Buttons below are the primary, fully-accessible controls.

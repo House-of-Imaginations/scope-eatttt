@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
 import type { Restaurant } from "@scope/contract";
+import { describe, expect, it, vi } from "vitest";
 
 // Behaviour-level tests against the SAME in-memory mock the app uses
 // (PUBLIC_USE_MOCK=1). load()/decide() exercise the real api transport; a
@@ -19,7 +19,11 @@ const fakeRestaurant = (id: string): Restaurant => ({
 });
 
 async function freshSession(): Promise<string> {
-  const { sessionId } = await api.session.create({ lat: 1, lng: 2, cuisines: [] });
+  const { sessionId } = await api.session.create({
+    lat: 1,
+    lng: 2,
+    cuisines: [],
+  });
   return sessionId;
 }
 

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { Candidate, Restaurant, SessionState } from "@scope/contract";
+import { describe, expect, it } from "vitest";
 import {
   ClosedSessionError,
   NotHostError,
@@ -224,10 +224,15 @@ describe("swipes", () => {
       ],
     });
 
-    const initialSwipeState: RecordSwipeResult = { session, swipes: [], rejectStreak: 0 };
+    const initialSwipeState: RecordSwipeResult = {
+      session,
+      swipes: [],
+      rejectStreak: 0,
+    };
     const rejected = [1, 2, 3, 4, 5].reduce(
       (state, index) =>
         recordSwipe({
+          // biome-ignore lint/performance/noAccumulatingSpread: test helper, small fixed array
           ...state,
           userId: index % 2 === 0 ? "host-user" : "user-2",
           restaurant: baseRestaurant(`reject-${index}`),
